@@ -12,3 +12,5 @@ Course AI projects, a lot of fun!
 >ie "python3 hrd.py puzzle5.txt puzzle5sol_dfs.txt puzzle5sol_astar.txt"
 >
 >hrd.validate is a script to compare the generated output file with given solution files. There's no solution file for input3.txt, but the optimal solution for it suppose to be cost of 116.
+
+[![huarongdao]()]
