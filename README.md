@@ -1,4 +1,4 @@
-# CSC385-Intro-to-AI
+# CSC384-Intro-to-AI
 Course AI projects, a lot of fun! 
 
 # 1. Huarongdao
