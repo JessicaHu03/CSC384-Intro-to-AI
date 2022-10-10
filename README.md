@@ -8,7 +8,7 @@ Course AI projects, a lot of fun!
 >hrd.py provides the solver with A* and dfs algorithm. 
 >
 >run by "python3 hrd.py (input file) (DFS output file) (A* output file)" 
-(if "python3" does not work, try "py")
+>(if "python3" does not work, try "py")
 >
 >ie "python3 hrd.py puzzle5.txt puzzle5sol_dfs.txt puzzle5sol_astar.txt"
 >
