@@ -356,17 +356,15 @@ def Minimax(state):
 
     val = Max_val(state, float('-inf'), float('inf'), depth)
     print(val)
-    return find_state(explored, val)
+    return find_state(state, val)
 
 
-def find_state(explored, val):
+def find_state(state, val):
     """ 
     find the state with given value
-    (? TODO how to find the specific state we want among all states with similar value)
     """
-    for state in explored:
-        value = state.value
-        if value == val:
+    for state in next_states(state):
+        if state.value == val:
             return state
     return None
 
