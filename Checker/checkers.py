@@ -96,10 +96,10 @@ def terminal(state):
     return if the game is over in curr state
     """
     if state.min_pieces == 0 or state.max_pieces == 0:
-        print("no piece")
+        # print("no piece")
         return True
     if len(find_moves(state)) == 0:
-        print("not move")
+        # print("not move")
         return True
     return False
 
@@ -116,15 +116,14 @@ def next_states(state):
 
     if state.player == "Max":
         new_player = "Min"
-        moves = find_moves(state)
         king_row = 0
         king_letter = "R"
     elif state.player == "Min":
         new_player = "Max"
-        moves = find_moves(state)
         king_row = 7
         king_letter = "B"
 
+    moves = find_moves(state)
     for i in range(len(moves)):
         old_y = moves[i][0]
         old_x = moves[i][1]
@@ -142,7 +141,7 @@ def next_states(state):
     return children
 
 
-def check_moves(data, old_pos, new_pos):
+def check_max_moves(data, old_pos, new_pos):
     old_y, old_x = old_pos
     new_y, new_x = new_pos
     if new_y < 0 or new_y > 7:
@@ -154,6 +153,23 @@ def check_moves(data, old_pos, new_pos):
     if data[new_y][new_x] != ".":
         return False
     if data[old_y][old_x] == "b" or data[old_y][old_x] == "B":
+        return False
+    if data[new_y][new_x] == ".":
+        return True
+
+
+def check_min_moves(data, old_pos, new_pos):
+    old_y, old_x = old_pos
+    new_y, new_x = new_pos
+    if new_y < 0 or new_y > 7:
+        return False
+    if new_x < 0 or new_x > 7:
+        return False
+    if data[old_y][old_x] == ".":
+        return False
+    if data[new_y][new_x] != ".":
+        return False
+    if data[old_y][old_x] == "r" or data[old_y][old_x] == "R":
         return False
     if data[new_y][new_x] == ".":
         return True
@@ -180,10 +196,9 @@ def check_jumps(data, old_pos, mid_pos, new_pos):
     return True
 
 
-def multi_jump(data, player, move_dir, jump_dir, curr_pos):  # Checked
+def multi_jump(data, player, move_dir, jump_dir, curr_pos):
     """ return the final position after multi-jumping from i, j """
     y, x = curr_pos
-    print(output_format(State(data=data)))
     # stop multi-jump when there's no next available jump
     if not any([check_jumps(data, (y, x), (y + move_dir[l][0], x + move_dir[l][1]), (y + jump_dir[l][0], x + jump_dir[l][1])) for l in range(len(jump_dir))]):
         # return curr pos
@@ -210,32 +225,36 @@ def find_moves(state):
                 if state.data[i][j] == "r":
                     # go left up and right up
                     move_dir = [[-1, -1], [-1, +1]]
-                    for i in range(len(move_dir)):
-                        if check_moves(state.data, (i, j), (i + move_dir[i][0], j + move_dir[i][1])):
+                    for k in range(len(move_dir)):
+                        if check_max_moves(state.data, (i, j), (i + move_dir[k][0], j + move_dir[k][1])):
                             moves.append(
-                                [i, j, i + move_dir[i][0], j + move_dir[i][1]])
+                                [i, j, i + move_dir[k][0], j + move_dir[k][1]])
 
                     # multi-jump
                     jump_dir = [[-2, -2], [-2, +2]]
-                    new_pos = multi_jump(
-                        state.data, state.player, move_dir, jump_dir, (i, j))
-                    new_i, new_j = new_pos
-                    jumps.append([i, j, new_i, new_j])
+                    for k in range(len(jump_dir)):
+                        new_pos = multi_jump(
+                            state.data, state.player, move_dir, jump_dir, (i, j))
+                        if new_pos and new_pos != (i, j):
+                            new_i, new_j = new_pos
+                            jumps.append([i, j, new_i, new_j])
 
                 # king
                 elif state.data[i][j] == "R":
                     move_dir = [[-1, -1], [-1, 1], [1, -1], [1, 1]]
-                    for i in range(len(move_dir)):
-                        if check_moves(state.data, (i, j), (i + move_dir[i][0], j + move_dir[i][1])):
+                    for k in range(len(move_dir)):
+                        if check_max_moves(state.data, (i, j), (i + move_dir[k][0], j + move_dir[k][1])):
                             moves.append(
-                                [i, j, i + move_dir[i][0], j + move_dir[i][1]])
+                                [i, j, i + move_dir[k][0], j + move_dir[k][1]])
 
                     # multi-jump
                     jump_dir = [[-2, -2], [-2, +2], [2, -2], [2, 2]]
-                    new_pos = multi_jump(
-                        state.data, state.player, move_dir, jump_dir, (i, j))
-                    new_i, new_j = new_pos
-                    jumps.append([i, j, new_i, new_j])
+                    for k in range(len(jump_dir)):
+                        new_pos = multi_jump(
+                            state.data, state.player, move_dir, jump_dir, (i, j))
+                        if new_pos and new_pos != (i, j):
+                            new_i, new_j = new_pos
+                            jumps.append([i, j, new_i, new_j])
 
     elif state.player == 'Min':
         for i in range(8):
@@ -243,32 +262,36 @@ def find_moves(state):
                 # men
                 if state.data[i][j] == "b":
                     move_dir = [[1, -1], [1, +1]]
-                    for i in range(len(move_dir)):
-                        if check_moves(state.data, (i, j), (i + move_dir[i][0], j + move_dir[i][1])):
+                    for k in range(len(move_dir)):
+                        if check_min_moves(state.data, (i, j), (i + move_dir[k][0], j + move_dir[k][1])):
                             moves.append(
-                                [i, j, i + move_dir[i][0], j + move_dir[i][1]])
+                                [i, j, i + move_dir[k][0], j + move_dir[k][1]])
 
                     # multi-jump
                     jump_dir = [[2, -2], [2, +2]]
-                    new_pos = multi_jump(
-                        state.data, state.player, move_dir, jump_dir, (i, j))
-                    new_i, new_j = new_pos
-                    jumps.append([i, j, new_i, new_j])
+                    for k in range(len(jump_dir)):
+                        new_pos = multi_jump(
+                            state.data, state.player, move_dir, jump_dir, (i, j))
+                        if new_pos and new_pos != (i, j):
+                            new_i, new_j = new_pos
+                            jumps.append([i, j, new_i, new_j])
 
                 # king
                 elif state.data[i][j] == "B":
                     move_dir = [[-1, -1], [-1, 1], [1, -1], [1, 1]]
-                    for i in range(len(move_dir)):
-                        if check_moves(state.data, (i, j), (i + move_dir[i][0], j + move_dir[i][1])):
+                    for k in range(len(move_dir)):
+                        if check_min_moves(state.data, (i, j), (i + move_dir[k][0], j + move_dir[k][1])):
                             moves.append(
                                 [i, j, i + move_dir[i][0], j + move_dir[i][1]])
 
                     # multi-jump
                     jump_dir = [[-2, -2], [-2, +2], [2, -2], [2, 2]]
-                    new_pos = multi_jump(
-                        state.data, state.player, move_dir, jump_dir, (i, j))
-                    new_i, new_j = new_pos
-                    jumps.append([i, j, new_i, new_j])
+                    for k in range(len(jump_dir)):
+                        new_pos = multi_jump(
+                            state.data, state.player, move_dir, jump_dir, (i, j))
+                        if new_pos and new_pos != (i, j):
+                            new_i, new_j = new_pos
+                            jumps.append([i, j, new_i, new_j])
 
     if len(jumps) != 0:
         return jumps
@@ -313,20 +336,19 @@ def Minimax(state):
 
     def Max_val(state, alpha, beta, depth):
         """ Max nodes """
+        state.player = 'Max'
         if terminal(state) or depth == 0:
-            print("terminal")
-            print(output_format(state))
-            print(depth)
             return simple_utility(state)
         val = float('-inf')
         for state in next_states(state):
-            print(output_format(state))
+            # print(output_format(state))
             explore = " ".join([' '.join([str(c) for c in lst])
                                 for lst in state.get_data()])
             if explore in explored:
                 continue
             else:
                 val = max(val, Min_val(state, alpha, beta, depth-1))
+                print("val = ", val)
                 state.set_value(val)
                 explored[explore] = val
                 if val >= beta:
@@ -336,17 +358,19 @@ def Minimax(state):
 
     def Min_val(state, alpha, beta, depth):
         """ Min nodes """
+        state.player = 'Min'
         if terminal(state) or depth == 0:
             return simple_utility(state)
         val = float('inf')
         for state in next_states(state):
-            print(output_format(state))
+            # print(output_format(state))
             explore = " ".join([' '.join([str(c) for c in lst])
                                 for lst in state.get_data()])
             if explore in explored:
                 continue
             else:
                 val = min(val, Max_val(state, alpha, beta, depth-1))
+                print("val = ", val)
                 state.set_value(val)
                 explored[explore] = val
                 if val <= alpha:
@@ -355,17 +379,19 @@ def Minimax(state):
         return val
 
     val = Max_val(state, float('-inf'), float('inf'), depth)
-    print(val)
     return find_state(state, val)
 
 
 def find_state(state, val):
     """ 
-    find the state with given value
+    find the state in next states with given value
     """
     for state in next_states(state):
+        print("value = ", state.value)
+        print(output_format(state))
         if state.value == val:
             return state
+    # shouldn't get here
     return None
 
 
@@ -410,9 +436,6 @@ def output_file(filename, state):
 
 
 if __name__ == '__main__':
-
-    file = open('./input0.txt', 'r')
-    print(file)
     init = read_file('./input0.txt')
-    final = Minimax(init)
-    print(output_format(final))
+    next = Minimax(init)
+    print(output_format(next))
