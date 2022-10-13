@@ -18,8 +18,18 @@ class State:
         self.data = data
         self.value = value
         self.parent = parent
+        if self.parent:
+            self.cost = parent.cost + 1
+        else:
+            self.cost = 0
         self.min_pieces = min_pieces(self)
         self.max_pieces = max_pieces(self)
+
+    def __gt__(self, state):
+        return self.value > state.value
+
+    def __lt__(self, state):
+        return self.value < state.value
 
     def get_data(self):
         """ return curr data"""
@@ -95,6 +105,11 @@ def terminal(state):
     """ 
     return if the game is over in curr state
     """
+    # print("terminal!")
+    # print("max pieces = ", state.max_pieces)
+    # print("min pieces = ", state.min_pieces)
+    # print("curr state: ", output_format(state))
+
     if state.min_pieces == 0 or state.max_pieces == 0:
         # print("no piece")
         return True
@@ -336,21 +351,27 @@ def Minimax(state):
 
     def Max_val(state, alpha, beta, depth):
         """ Max nodes """
-        state.player = 'Max'
+        print("curr state: \n", output_format(state))
         if terminal(state) or depth == 0:
+            print("end here, terminal state: ",
+                  terminal(state), " depth: ", depth)
             return simple_utility(state)
         val = float('-inf')
-        for state in next_states(state):
-            # print(output_format(state))
-            explore = " ".join([' '.join([str(c) for c in lst])
-                                for lst in state.get_data()])
-            if explore in explored:
+        print("MAX turn")
+        print("curr state: \n", output_format(state))
+        frontier = next_states(state)
+        while frontier:
+            curr = heapq.heappop(frontier)
+            print("child")
+            print(output_format(curr))
+            if is_in(curr, explored):
                 continue
             else:
-                val = max(val, Min_val(state, alpha, beta, depth-1))
-                print("val = ", val)
-                state.set_value(val)
-                explored[explore] = val
+                val = max(val, Min_val(curr, alpha, beta, depth-1))
+                # print("val = ", val)
+                # we want children of min node to order min to max
+                curr.set_value(-val)
+                explored[curr] = val
                 if val >= beta:
                     return val
                 alpha = max(alpha, val)
@@ -358,44 +379,65 @@ def Minimax(state):
 
     def Min_val(state, alpha, beta, depth):
         """ Min nodes """
-        state.player = 'Min'
         if terminal(state) or depth == 0:
+            print("end here, terminal state: ",
+                  terminal(state), " depth: ", depth)
             return simple_utility(state)
         val = float('inf')
-        for state in next_states(state):
-            # print(output_format(state))
-            explore = " ".join([' '.join([str(c) for c in lst])
-                                for lst in state.get_data()])
-            if explore in explored:
+        print("Min turn")
+        print("curr state: \n", output_format(state))
+        frontier = next_states(state)
+        while frontier:
+            # TODO value has not been assigned yet, heappop will not pop the min value node
+            curr = heapq.heappop(frontier)
+            print("child")
+            print(output_format(curr))
+            if is_in(curr, explored):
                 continue
             else:
-                val = min(val, Max_val(state, alpha, beta, depth-1))
-                print("val = ", val)
-                state.set_value(val)
-                explored[explore] = val
+                val = min(val, Max_val(curr, alpha, beta, depth-1))
+                # we want children of min node to order min to max
+                curr.set_value(val)
+                explored[curr] = val
                 if val <= alpha:
                     return val
                 beta = min(beta, val)
         return val
 
     val = Max_val(state, float('-inf'), float('inf'), depth)
-    return find_state(state, val)
+    # print("explored: ")
+    # for state in explored:
+    #     print("state: ")
+    #     print(output_format(state))
+    #     print("value = ", explored[state])
+    # print("explored end")
+    return find_state(explored, val)
 
 
-def find_state(state, val):
+def is_in(given_state, explored):
     """ 
-    find the state in next states with given value
+    find if the state is in explored
     """
-    for state in next_states(state):
-        print("value = ", state.value)
-        print(output_format(state))
+    for state in explored:
+        if state.player == given_state.player and state.data == given_state.data and state.cost == given_state.cost and state.value == given_state.value and state.cost == given_state.cost:
+            return True
+    return False
+
+
+def find_state(explored, val):
+    # print("children")
+    # print("wanted val = ", val)
+    for state in explored:
+        # print(output_format(state))
+        # print("with value = ", state.value)
         if state.value == val:
             return state
     # shouldn't get here
+    print("WRONG")
     return None
 
+######################### files ###########################
 
-######################### files ################################
 
 def output_format(state):
     result = ""
@@ -436,6 +478,6 @@ def output_file(filename, state):
 
 
 if __name__ == '__main__':
-    init = read_file('./input0.txt')
+    init = read_file('input0.txt')
     next = Minimax(init)
     print(output_format(next))
