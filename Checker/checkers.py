@@ -2,10 +2,6 @@ from copy import deepcopy
 import copy
 import heapq
 import sys
-import numpy as np
-from collections import defaultdict, deque
-from queue import PriorityQueue
-import os
 
 
 class State:
@@ -24,12 +20,17 @@ class State:
             self.cost = 0
         self.min_pieces = min_pieces(self)
         self.max_pieces = max_pieces(self)
+        if self.player == 'Max':
+            self.utility = -(simple_utility(self))
+        else:
+            self.utility = simple_utility(self)
 
+    # for node ordering
     def __gt__(self, state):
-        return self.value > state.value
+        return self.utility > state.utility
 
     def __lt__(self, state):
-        return self.value < state.value
+        return self.utility < state.utility
 
     def get_data(self):
         """ return curr data"""
@@ -105,16 +106,11 @@ def terminal(state):
     """ 
     return if the game is over in curr state
     """
-    # print("terminal!")
-    # print("max pieces = ", state.max_pieces)
-    # print("min pieces = ", state.min_pieces)
-    # print("curr state: ", output_format(state))
-
     if state.min_pieces == 0 or state.max_pieces == 0:
-        # print("no piece")
+        # "no piece"
         return True
     if len(find_moves(state)) == 0:
-        # print("not move")
+        # "not move"
         return True
     return False
 
@@ -211,12 +207,26 @@ def check_jumps(data, old_pos, mid_pos, new_pos):
     return True
 
 
-def multi_jump(data, player, move_dir, jump_dir, curr_pos):
+def multi_jump(init_data, player, move_dir, jump_dir, curr_pos):
+    jumps = []
+    y, x = curr_pos
+    for k in range(len(jump_dir)):
+        if check_jumps(init_data, (y, x), (y + move_dir[k][0], x + move_dir[k][1]), (y + jump_dir[k][0], x + jump_dir[k][1])):
+            new_pos = multi_jump_helper(
+                init_data, player, move_dir, jump_dir, curr_pos)
+            if new_pos and new_pos != curr_pos:
+                old_i, old_j = curr_pos
+                new_i, new_j = new_pos
+                jumps.append([old_i, old_j, new_i, new_j])
+    return jumps
+
+
+def multi_jump_helper(init_data, player, move_dir, jump_dir, curr_pos):
     """ return the final position after multi-jumping from i, j """
     y, x = curr_pos
-    # stop multi-jump when there's no next available jump
-    if not any([check_jumps(data, (y, x), (y + move_dir[l][0], x + move_dir[l][1]), (y + jump_dir[l][0], x + jump_dir[l][1])) for l in range(len(jump_dir))]):
-        # return curr pos
+    data = deepcopy(init_data)
+    # stop multi-jump and return curr pos when there's no next available jump
+    if all([check_jumps(data, (y, x), (y + move_dir[l][0], x + move_dir[l][1]), (y + jump_dir[l][0], x + jump_dir[l][1])) == False for l in range(len(jump_dir))]):
         return curr_pos
 
     for k in range(len(jump_dir)):
@@ -226,7 +236,7 @@ def multi_jump(data, player, move_dir, jump_dir, curr_pos):
             king_row = 0 if player == 'Max' else 7
             player = 'Min' if player == 'Max' else 'Max'
             move(data, (y, x), new_pos, king_letter, king_row)
-            multi_jump(data, player, move_dir, jump_dir, new_pos)
+            return multi_jump_helper(data, player, move_dir, jump_dir, new_pos)
 
 
 def find_moves(state):
@@ -247,12 +257,8 @@ def find_moves(state):
 
                     # multi-jump
                     jump_dir = [[-2, -2], [-2, +2]]
-                    for k in range(len(jump_dir)):
-                        new_pos = multi_jump(
-                            state.data, state.player, move_dir, jump_dir, (i, j))
-                        if new_pos and new_pos != (i, j):
-                            new_i, new_j = new_pos
-                            jumps.append([i, j, new_i, new_j])
+                    jumps = multi_jump(
+                        state.data, state.player, move_dir, jump_dir, (i, j))
 
                 # king
                 elif state.data[i][j] == "R":
@@ -264,12 +270,8 @@ def find_moves(state):
 
                     # multi-jump
                     jump_dir = [[-2, -2], [-2, +2], [2, -2], [2, 2]]
-                    for k in range(len(jump_dir)):
-                        new_pos = multi_jump(
-                            state.data, state.player, move_dir, jump_dir, (i, j))
-                        if new_pos and new_pos != (i, j):
-                            new_i, new_j = new_pos
-                            jumps.append([i, j, new_i, new_j])
+                    jumps = multi_jump(
+                        state.data, state.player, move_dir, jump_dir, (i, j))
 
     elif state.player == 'Min':
         for i in range(8):
@@ -297,7 +299,7 @@ def find_moves(state):
                     for k in range(len(move_dir)):
                         if check_min_moves(state.data, (i, j), (i + move_dir[k][0], j + move_dir[k][1])):
                             moves.append(
-                                [i, j, i + move_dir[i][0], j + move_dir[i][1]])
+                                [i, j, i + move_dir[k][0], j + move_dir[k][1]])
 
                     # multi-jump
                     jump_dir = [[-2, -2], [-2, +2], [2, -2], [2, 2]]
@@ -315,7 +317,6 @@ def find_moves(state):
 
 
 def move(data, old_pos, new_pos, king_letter, king_row):
-
     old_y, old_x = old_pos
     new_y, new_x = new_pos
 
@@ -342,99 +343,92 @@ def move(data, old_pos, new_pos, king_letter, king_row):
     data[new_y][new_x] = letter
 
 
-#################### Minimax with AlphaBeta Pruning ###############
+#################### Minimax with AlphaBeta Pruning ##############
 
 def Minimax(state):
     """ return the best move & max value by using minimax with alpha beta pruning"""
-    depth = 6
+    depth = 8
     explored = dict()
 
     def Max_val(state, alpha, beta, depth):
         """ Max nodes """
-        print("curr state: \n", output_format(state))
+        # print("MAX")
+        # print("curr state: \n", output_format(state))
         if terminal(state) or depth == 0:
-            print("end here, terminal state: ",
-                  terminal(state), " depth: ", depth)
-            return simple_utility(state)
-        val = float('-inf')
-        print("MAX turn")
-        print("curr state: \n", output_format(state))
+            # print("end here, terminal state: ",
+            #       terminal(state), " depth: ", depth)
+            return [state, simple_utility(state)]  # TODO
+        value = float('-inf')
+        best_move = state
         frontier = next_states(state)
         while frontier:
             curr = heapq.heappop(frontier)
-            print("child")
-            print(output_format(curr))
-            if is_in(curr, explored):
+            # print("child")
+            # print(output_format(curr))
+            explore = to_string(curr.data)
+            if explore in explored and curr.player == explored[explore]:
                 continue
             else:
-                val = max(val, Min_val(curr, alpha, beta, depth-1))
-                # print("val = ", val)
+                pair = Min_val(curr, alpha, beta, depth-1)
+                move, val = pair[0], pair[1]
                 # we want children of min node to order min to max
-                curr.set_value(-val)
-                explored[curr] = val
-                if val >= beta:
-                    return val
-                alpha = max(alpha, val)
-        return val
+                curr.set_value(val)
+                explored[explore] = curr.player
+                if value < val:
+                    best_move, value = move, val
+                if value >= beta:
+                    # print("the other children is pruned")
+                    return [best_move, value]
+                alpha = max(alpha, value)
+        return [best_move, value]
 
     def Min_val(state, alpha, beta, depth):
         """ Min nodes """
+        # print("MIN")
+        # print("curr state: \n", output_format(state))
         if terminal(state) or depth == 0:
-            print("end here, terminal state: ",
-                  terminal(state), " depth: ", depth)
-            return simple_utility(state)
-        val = float('inf')
-        print("Min turn")
-        print("curr state: \n", output_format(state))
+            # print("end here, terminal state: ",
+            #      terminal(state), " depth: ", depth)
+            return [state, simple_utility(state)]
+        value = float('inf')
+        best_move = state
         frontier = next_states(state)
         while frontier:
-            # TODO value has not been assigned yet, heappop will not pop the min value node
             curr = heapq.heappop(frontier)
-            print("child")
-            print(output_format(curr))
-            if is_in(curr, explored):
+            # print("child")
+            # print(output_format(curr))
+            explore = to_string(curr.data)
+            if explore in explored and curr.player == explored[explore]:
                 continue
             else:
-                val = min(val, Max_val(curr, alpha, beta, depth-1))
-                # we want children of min node to order min to max
+                pair = Max_val(curr, alpha, beta, depth-1)
+                move, val = pair[0], pair[1]
                 curr.set_value(val)
-                explored[curr] = val
-                if val <= alpha:
-                    return val
-                beta = min(beta, val)
-        return val
+                explored[explore] = curr.player
+                if value > val:
+                    best_move, value = move, val
+                if value <= alpha:
+                    # print("other children is pruned")
+                    return [best_move, value]
+                beta = min(beta, value)
+        return [best_move, value]
 
-    val = Max_val(state, float('-inf'), float('inf'), depth)
-    # print("explored: ")
-    # for state in explored:
-    #     print("state: ")
-    #     print(output_format(state))
-    #     print("value = ", explored[state])
-    # print("explored end")
-    return find_state(explored, val)
-
-
-def is_in(given_state, explored):
-    """ 
-    find if the state is in explored
-    """
-    for state in explored:
-        if state.player == given_state.player and state.data == given_state.data and state.cost == given_state.cost and state.value == given_state.value and state.cost == given_state.cost:
-            return True
-    return False
+    pair = Max_val(state, float('-inf'), float('inf'), depth)
+    best_move, val = pair[0], pair[1]
+    print("wanted value: ", val)
+    return trace_back(best_move, state)
 
 
-def find_state(explored, val):
-    # print("children")
-    # print("wanted val = ", val)
-    for state in explored:
-        # print(output_format(state))
-        # print("with value = ", state.value)
-        if state.value == val:
-            return state
-    # shouldn't get here
-    print("WRONG")
-    return None
+def trace_back(state, init_state):
+    while state.parent != init_state:
+        print(output_format(state))
+        state = state.parent
+    return state
+
+
+def to_string(data):
+    string = " ".join([' '.join([str(c) for c in lst]) for lst in data])
+    return string
 
 ######################### files ###########################
 
@@ -445,7 +439,6 @@ def output_format(state):
         for j in range(8):
             result += str(state.data[i][j])
         result += "\n"
-    result += "\n"
     return result
 
 
@@ -478,6 +471,9 @@ def output_file(filename, state):
 
 
 if __name__ == '__main__':
-    init = read_file('input0.txt')
+    init = read_file('input1.txt')
     next = Minimax(init)
     print(output_format(next))
+
+    # init = read_file(sys.argv[1])
+    # output_file(sys.argv[2], init)
