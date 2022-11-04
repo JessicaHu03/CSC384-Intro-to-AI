@@ -1,20 +1,22 @@
 from collections import defaultdict, deque
 from copy import deepcopy
 import sys
+from tkinter import Variable
 
 row_const = []
 col_const = []
 ship_const = {"S": 0, "D": 0, "C": 0, "B": 0}
 dim = 0
+variables = []
 
 
 class State:
     """A state is a table of all the tiles with given initial locations.
     """
 
-    def __init__(self, ships=None, domain=None, data=None, parent=None):
+    def __init__(self, ships=None, assigned=None, data=None, parent=None):
         self.ships = ships
-        self.domain = domain
+        self.assigned = assigned
         self.data = data
         self.parent = parent
         if self.parent:
@@ -44,7 +46,7 @@ class State:
 def preprocessing(state):  # checked
     """ filled the water to squares needed on board"""
 
-    # surround ship_const with W
+    # surround my_ship with W
     update_data(state.data)
     # print("after update_data: \n", print_data(state))
 
@@ -55,7 +57,7 @@ def preprocessing(state):  # checked
 
 def update_data(data):  # checked
     """
-    update the grid by surround ship_const with W
+    update the grid by surround my_ship with W
     """
     for i in range(dim):
         for j in range(dim):
@@ -155,11 +157,11 @@ def update_data(data):  # checked
 
 def update_const(data):  # checked
     """
-    update the board based on row, col, ship_const const
+    update the board based on row, col, my_ship const
     """
     if match_ships(data):
-        # ship_const number matched, filled the rest of the board with W
-        # print("ship_const checked")
+        # my_ship number matched, filled the rest of the board with W
+        # print("my_ship checked")
         for i in range(dim):
             for j in range(dim):
                 if data[i][j] == '0':
@@ -268,56 +270,60 @@ def count_ships(data):
 
 
 def match_ships(data):  # checked
-    """ check if the current board falsify the ship_const constraint"""
+    """ check if the current board falsify the my_ship constraint"""
     ships = count_ships(data)
-    if ships["S"] == ship_const["S"] and ships["D"] == ship_const["D"] and ships["C"] == ship_const["C"] and ships["B"] == ship_const["B"]:
-        # the ship_const number match
+    if ships["S"] == ship_const["S"] and ship_const["D"] == ship_const["D"] and ships["C"] == ship_const["C"] and ships["B"] == ship_const["B"]:
+        # the my_ship number match
         return True
     else:
         return False
 
 
-def check_ships(data):  # checked
-    """ check if the current board falsify the ship_const constraint"""
-    ships = count_ships(data)
-    if ships["S"] <= ship_const["S"] and ships["D"] <= ship_const["D"] and ships["C"] <= ship_const["C"] and ships["B"] <= ship_const["B"]:
-        # the ship_const number match
-        return True
-    else:
-        return False
+# def check_ships(data):  # checked
+#     """ check if the current board falsify the my_ship constraint"""
+#     ships = count_ships(data)
+#     if ships["S"] <= my_ship["S"] and ships["D"] <= my_ship["D"] and ships["C"] <= my_ship["C"] and ships["B"] <= my_ship["B"]:
+#         # the my_ship number match
+#         return True
+#     else:
+#         return False
 
 
-def domains(state):  # checked
+def create_domain(data, var):
     """
     add all possible move (domain) for each ship & remove the assigned variables
     should have checked that there is bat ship num >= 1 before calling this function
     WARNING: cannot call it anywhere else except in read_file, will cause duplicate domain
     """
-    data = state.data
-    domain = state.domain
+    domain = []
     for i in range(dim):
         for j in range(dim):
-            if i+3 <= dim-1 and data[i][j] == '0' and data[i+1][j] == '0' and data[i+2][j] == '0' and data[i+3][j] == '0':
-                # there is space to place a vertical battleship
-                domain["B"].append([[i, j], [i+1, j], [i+2, j], [i+3, j]])
-            if j+3 <= dim-1 and data[i][j] == '0' and data[i][j+1] == '0' and data[i][j+2] == '0' and data[i][j+3] == '0':
-                # there is space to place a horizontal battleship
-                domain["B"].append([[i, j], [i, j+1], [i, j+2], [i, j+3]])
-            if i+2 <= dim-1 and data[i][j] == '0' and data[i+1][j] == '0' and data[i+2][j] == '0':
-                # there is space to place a vertical cruiser
-                domain["C"].append([[i, j], [i+1, j], [i+2, j]])
-            if j+2 <= dim-1 and data[i][j] == '0' and data[i][j+1] == '0' and data[i][j+2] == '0':
-                # there is space to place a horizontal cruiser
-                domain["C"].append([[i, j], [i, j+1], [i, j+2]])
-            if i+1 <= dim-1 and data[i][j] == '0' and data[i+1][j] == '0':
-                # there is space to place a vertical destroyer
-                domain["D"].append([[i, j], [i+1, j]])
-            if j+1 <= dim-1 and data[i][j] == '0' and data[i][j+1] == '0':
-                # there is space to place a horizontal destroyer
-                domain["D"].append([[i, j], [i, j+1]])
-            if data[i][j] == '0':
-                # there is space to place a submarine
-                domain["S"].append([[i, j]])
+            if var == 4:
+                if i+3 <= dim-1 and data[i][j] == '0' and data[i+1][j] == '0' and data[i+2][j] == '0' and data[i+3][j] == '0':
+                    # there is space to place a vertical battleship
+                    domain.append([[i, j], [i+1, j], [i+2, j], [i+3, j]])
+                if j+3 <= dim-1 and data[i][j] == '0' and data[i][j+1] == '0' and data[i][j+2] == '0' and data[i][j+3] == '0':
+                    # there is space to place a horizontal battleship
+                    domain.append([[i, j], [i, j+1], [i, j+2], [i, j+3]])
+            elif var == 3:
+                if i+2 <= dim-1 and data[i][j] == '0' and data[i+1][j] == '0' and data[i+2][j] == '0':
+                    # there is space to place a vertical cruiser
+                    domain.append([[i, j], [i+1, j], [i+2, j]])
+                if j+2 <= dim-1 and data[i][j] == '0' and data[i][j+1] == '0' and data[i][j+2] == '0':
+                    # there is space to place a horizontal cruiser
+                    domain.append([[i, j], [i, j+1], [i, j+2]])
+            elif var == 2:
+                if i+1 <= dim-1 and data[i][j] == '0' and data[i+1][j] == '0':
+                    # there is space to place a vertical destroyer
+                    domain.append([[i, j], [i+1, j]])
+                if j+1 <= dim-1 and data[i][j] == '0' and data[i][j+1] == '0':
+                    # there is space to place a horizontal destroyer
+                    domain.append([[i, j], [i, j+1]])
+            elif var == 1:
+                if data[i][j] == '0':
+                    # there is space to place a submarine
+                    domain.append([[i, j]])
+    return domain
 
 
 def check_orientation(positions):  # checked
@@ -330,61 +336,68 @@ def check_orientation(positions):  # checked
         return 0
 
 
-def insert_into_board(data, var, pos):  # checked
+def insert_into_board(data, ship_type, pos):  # checked
     """ set the given variable into given position """
+    new_data = deepcopy(data)
+    var = ship_type
     if len(pos) > 1:
         ori = check_orientation(pos)
     # pos = all of the squares need to be filled up with 'T', 'B', 'L', 'R', 'M' or 'S'
-    if var == 'B':  # a battleship, 1x4
+    if var == 4:  # a battleship, 1x4
         if ori == 0:  # horizontal
             y, x = pos[0][0], pos[0][1]
-            data[y][x] = 'L'
+            new_data[y][x] = 'L'
             y, x = pos[1][0], pos[1][1]
-            data[y][x] = 'M'
+            new_data[y][x] = 'M'
             y, x = pos[2][0], pos[2][1]
-            data[y][x] = 'M'
+            new_data[y][x] = 'M'
             y, x = pos[3][0], pos[3][1]
-            data[y][x] = 'R'
+            new_data[y][x] = 'R'
         else:  # vertical
             y, x = pos[0][0], pos[0][1]
-            data[y][x] = 'T'
+            new_data[y][x] = 'T'
             y, x = pos[1][0], pos[1][1]
-            data[y][x] = 'M'
+            new_data[y][x] = 'M'
             y, x = pos[2][0], pos[2][1]
-            data[y][x] = 'M'
+            new_data[y][x] = 'M'
             y, x = pos[3][0], pos[3][1]
-            data[y][x] = 'B'
-    elif var == 'C':  # cruiser, 1x3
+            new_data[y][x] = 'B'
+    elif var == 3:  # cruiser, 1x3
         if ori == 0:  # horizontal
             y, x = pos[0][0], pos[0][1]
-            data[y][x] = 'L'
+            new_data[y][x] = 'L'
             y, x = pos[1][0], pos[1][1]
-            data[y][x] = 'M'
+            new_data[y][x] = 'M'
             y, x = pos[2][0], pos[2][1]
-            data[y][x] = 'R'
+            new_data[y][x] = 'R'
         else:  # vertical
             y, x = pos[0][0], pos[0][1]
-            data[y][x] = 'T'
+            new_data[y][x] = 'T'
             y, x = pos[1][0], pos[1][1]
-            data[y][x] = 'M'
+            new_data[y][x] = 'M'
             y, x = pos[2][0], pos[2][1]
-            data[y][x] = 'B'
-    elif var == 'D':  # destroyer, 1x2
+            new_data[y][x] = 'B'
+    elif var == 2:  # destroyer, 1x2
         if ori == 0:  # horizontal
             y, x = pos[0][0], pos[0][1]
-            data[y][x] = 'L'
+            new_data[y][x] = 'L'
             y, x = pos[1][0], pos[1][1]
-            data[y][x] = 'R'
+            new_data[y][x] = 'R'
         else:  # vertical
             y, x = pos[0][0], pos[0][1]
-            data[y][x] = 'T'
+            new_data[y][x] = 'T'
             y, x = pos[1][0], pos[1][1]
-            data[y][x] = 'B'
-    elif var == 'S':  # submarine, 1x1
+            new_data[y][x] = 'B'
+    elif var == 1:  # submarine, 1x1
         y, x = pos[0][0], pos[0][1]
-        data[y][x] = 'S'
-    update_const(data)
-    update_data(data)
+        new_data[y][x] = 'S'
+
+    # filled col or row with W where needed
+    update_const(new_data)
+    # surround this ship with W
+    update_data(new_data)
+
+    return new_data
 
 
 def update_domain(state, var, pos):  # checked
@@ -400,16 +413,21 @@ def update_domain(state, var, pos):  # checked
     s = surround(pos)
     for x in domain:
         if x == var:
-            origin = deepcopy(domain[x])
-            domain[x].remove(pos)
-            if len(origin) == len(domain[x]):
-                print("fail to remove from domain")
+            # origin = deepcopy(domain[x])
+            # domain[x].remove(pos)
+            # if len(origin) == len(domain[x]):
+            #    print("fail to remove from domain")
+            continue
         else:  # for Y
+            # print(x)
             y = 0
             while y < len(domain[x]):
+                # print(y)
                 for k in domain[x][y]:
                     if k in s:
+                        # print(domain[x])
                         l = domain[x].pop(y)
+                        # print(domain[x])
                         y -= 1
                         break
                 y += 1
@@ -489,7 +507,7 @@ def check_overlapping(data, pos):  # checked
         y, x = x[0], x[1]
         if data[y][x] != 'W' and data[y][x] != '0':
             return False
-
+    # does not overlap
     return True
 
 
@@ -505,11 +523,11 @@ def check_consistent(data, pos):  # checked
 
     # sub
     if len(pos) == 1:  # S
-        if match_row_const(data, pos[0][1]):
+        if match_row_const(data, pos[0][0]):
             # filled the rest of the col with W
             update_const(data)
         res.append(check_row_const(data, pos[0][1]))
-        if match_col_const(data, pos[0][0]):
+        if match_col_const(data, pos[0][1]):
             # filled the rest of the col with W
             update_const(data)
         res.append(check_col_const(data, pos[0][0]))
@@ -545,242 +563,286 @@ def check_consistent(data, pos):  # checked
 
 
 def all_assigned(state):  # checked
-    """ return True if every ship_const is assigned with a position """
+    """ return True if every my_ship is assigned with a position """
     if match_ships(state.data):
         return True
     return False
 
 
-def clear_domain(state, var):
-    """ clear the domain of the variable """
-    for pos in state.domain[var]:
-        state.domain[var].remove(pos)
+# def clear_domain(state, var):
+#     """ clear the domain of the variable """
+#     for pos in state.domain[var]:
+#         state.domain[var].remove(pos)
 
 
-def MRV(state):  # checked
+def check_r_const(data, row_num, num_squares):
+    row = data[row_num]
+    total = 0
+    for i in range(len(row)):
+        if row[i] != '0' and row[i] != 'W':
+            total += 1
+    total += num_squares
+    if total <= row_const[row_num]:
+        return True
+    else:
+        return False
+
+
+def make_r_const(data, new_var_index, pos):  # ?
+    """ 
+    row constraint
+    input should be a domain of all possible positions
+    return only the domain consistent
+    """
+    if not pos:  # pos is None
+        return None
+    res = []
+    var = variables[new_var_index]
+    if var == 1:  # S
+        for i in range(len(pos)):
+            if check_r_const(data, pos[i][0][0], 1):
+                res.append(pos[i])
+    elif var == 2:  # D
+        for i in range(len(pos)):
+            # for one possible position set
+            if check_orientation(pos[i]) == 0:  # horizontal
+                if check_r_const(data, pos[i][0][0], 2):  # only check 1 row
+                    res.append(pos[i])
+            else:  # vertical
+                if all([check_r_const(data, pos[i][j][0], 1) for j in range(len(pos[i]))]):
+                    res.append(pos[i])
+    elif var == 3:  # C
+        for i in range(len(pos)):
+            # for one possible position set
+            if check_orientation(pos[i]) == 0:  # horizontal
+                if check_r_const(data, pos[i][0][0], 3):  # only check 1 row
+                    res.append(pos[i])
+            else:  # vertical
+                if all([check_r_const(data, pos[i][j][0], 1) for j in range(len(pos[i]))]):
+                    res.append(pos[i])
+    elif var == 4:  # D
+        for i in range(len(pos)):
+            # for one possible position set
+            if check_orientation(pos[i]) == 0:  # horizontal
+                if check_r_const(data, pos[i][0][0], 4):  # only check 1 row
+                    res.append(pos[i])
+            else:  # vertical
+                if all([check_r_const(data, pos[i][j][0], 1) for j in range(len(pos[i]))]):
+                    res.append(pos[i])
+
+    if len(res) == 0:
+        return None
+    return res
+
+
+def check_c_const(data, col_num, num_squares):
+    col = [data[i][col_num] for i in range(len(data))]
+    total = 0
+    for i in range(len(col)):
+        if col[i] != '0' and col[i] != 'W':
+            total += 1
+    total += num_squares
+    if total <= col_const[col_num]:
+        return True
+    else:
+        return False
+
+
+def make_c_const(data, new_var_index, pos):  # checked
+    """ 
+    col constraint
+    input should be a domain of all possible positions
+    return only the domain consistent
+    """
+    if not pos:  # pos is None
+        return None
+
+    res = []
+    var = variables[new_var_index]
+    if var == 1:  # S
+        for i in range(len(pos)):
+            if check_c_const(data, pos[i][0][1], 1):
+                res.append(pos[i])
+    elif var == 2:  # D
+        for i in range(len(pos)):
+            # for one possible position set
+            if check_orientation(pos[i]) == 1:  # vertical
+                if check_c_const(data, pos[i][0][1], 2):  # only check 1 row
+                    res.append(pos[i])
+            else:  # horizontal
+                if all([check_c_const(data, pos[i][j][1], 1) for j in range(len(pos[i]))]):
+                    res.append(pos[i])
+    elif var == 3:  # C
+        for i in range(len(pos)):
+            # for one possible position set
+            if check_orientation(pos[i]) == 1:  # vertical
+                if check_c_const(data, pos[i][0][1], 3):  # only check 1 row
+                    res.append(pos[i])
+            else:  # horizontal
+                if all([check_c_const(data, pos[i][j][1], 1) for j in range(len(pos[i]))]):
+                    res.append(pos[i])
+    elif var == 4:  # D
+        for i in range(len(pos)):
+            # for one possible position set
+            if check_orientation(pos[i]) == 1:  # vertical
+                if check_c_const(data, pos[i][0][1], 4):  # only check 1 row
+                    res.append(pos[i])
+            else:  # horizontal
+                if all([check_c_const(data, pos[i][j][1], 1) for j in range(len(pos[i]))]):
+                    res.append(pos[i])
+
+    if len(res) == 0:
+        return None
+    return res
+
+
+def make_non_overlapping_const(state, assign_index, pos):  # checked
+    """ """
+    if not pos:  # pos is None
+        return None
+
+    res = []
+    data = state.data
+    assign_pos = state.assigned[assign_index]
+    for i in range(len(pos)):
+        # for each position set
+        if check_overlapping(data, pos[i]) and not is_subset(assign_pos, pos[i]):
+            res.append(pos[i])
+    if len(res) == 0:
+        return None
+    return res
+
+
+def is_subset(assign_pos, pos):
+    """ """
+    s = surround(assign_pos)
+    for i in range(len(pos)):
+        # for each square
+        if pos[i] in s:
+            # overlap or next to
+            return True
+    # does not overlap
+    return False
+
+
+def MRV(ships):  # checked
     """" return the name of the unassigned variable with the least CurDom"""
-    min = float('inf')
-    min_var = ""
-    print(print_domain(state))
-    for x in state.domain:
-        # this variable is not assigned and has least domain
-        if state.ships[x] < ship_const[x]:
-            if len(state.domain[x]) < min:
-                min = len(state.domain[x])
-                min_var = str(x)         # update the least domain
-            else:
-                continue
-        else:  # every var for this kind of ship has been assigned, clear its domain
-            clear_domain(state, x)
+    if len(ships) > 0:
+        return ships.pop()
+    else:
+        print("nothing to pop")
+        return None
 
-    if min_var == "":
-        # no ships satisfy the requirement
-        print("problem with MRV")
-        print("ships: ", state.ships)
-        print("domains: ", print_domain(state))
-        exit()
-    return min_var
 
-# def GAC1(state):
-#     """ forward checking """
+def FC(state, ships, arrangements, current_board):
+    """ Forward checking"""
+
+    if all_assigned(state):
+        return (True, current_board)
+    if (len(ships)) > len(arrangements):
+        return (False, current_board)
+    if len(ships) == 0:
+        print(print_data(state))
+
+    for row in current_board:
+        print(row)
+        print("\n")
+
+    var = ships[len(ships)-1]
+    next_arrangements = create_domain(state.data, var)
+
+    next_arrangements = make_r_const(
+        state.data, len(ships)-1, next_arrangements)
+    print(next_arrangements)
+    next_arrangements = make_c_const(
+        state.data, len(ships)-1, next_arrangements)
+    print(next_arrangements)
+    next_arrangements = make_non_overlapping_const(
+        state, len(ships), next_arrangements)
+    print(next_arrangements)
+
+    if not next_arrangements:
+        return (False, current_board)
+
+    for arrangement in next_arrangements:
+        current_board = insert_into_board(state.data, ships, arrangement)
+        assigned = deepcopy(state.assigned)
+        assigned[len(ships)-1] = arrangement
+        next_state = State(data=current_board, assigned=assigned, parent=state)
+        next_state.assigned[len(ships)-1] = arrangement
+        preprocessing(init)
+        result, board = FC(next_state, ships[0: len(
+            ships)-1], next_arrangements, current_board)
+
+        if result:
+            return (True, board)
+
+    return (False, board)
+
+
+# def FC1(state, ship_type, index, domain):
 
 #     if all_assigned(state):
-#         print(print_data(state))
-#         solution = state
-#         exit()
+#         return state
 
-#     # filled necessary squares with W
-#     # preprocessing(state)
+#     # ships = state.ships
+#     # var = MRV(ships)
+#     # the index of this newly pop var is the last index on original ships (= len)
+#     # index = len(ships)
 
-#     # pick an unassigned variable that has the least domain
-#     var = MRV(state)
+#     preprocessing(state)
+#     print(print_data(state))
+#     # domain = create_domain(state, var)
+#     print(domain)
+#     assigned = state.assigned
 
-#     # var has to be battleship if num of bat != 0
-#     i = 0
-#     total = ship_const[var]
-#     while i < total:
-#         for val in state.domain[var]:
-#             stored_domain = deepcopy(state.domain)
+#     for pos in domain:
 
-#             # assign this val to var (place this var ship in val pos)
-#             new_data = deepcopy(state.data)
-#             # new board with the ship placed
-#             insert_into_board(new_data, var, val)
-#             new_domain = deepcopy(state.domain)
-#             child = State(parent=state, data=new_data,
-#                           domain=new_domain)
-#             update_domain(child, var, val)
-#             state.ship[var] += 1
+#         # assign var to pos
+#         assigned[index] = pos
 
-#             # add all relevant constraints C into GACQueue
-#             # GACQueue.append()
-
-#             # if there's DWO in any Y, this X is pruned
-#             if GAC_Enforce(child, var) != 'DWO':
-#                 GAC(child)
-
-#             state.domain = stored_domain
-#         i += 1
-#     # assigned = False  # undo since we have tried all of V's value
-#     return
-
-
-# def GAC_Enforce(state):
-#     """ we have assigned a variable, now we need to assign the rest and see if any of them encounter DWO """
-#     domain = state.domain
-#     # const is a constraint with all its variables already assigned, except for variable x
-
-#     for pos in domain[var]:
+#         # place var on pos
 #         new_data = deepcopy(state.data)
-#         insert_into_board(new_data, var, pos)
+#         insert_into_board(new_data, ship_type, pos)
+#         new_ships = deepcopy(state.ships)
+#         new_assigned = deepcopy(assigned)
 
-#         # for every C, if making x = val violate C
-#         Y = deepcopy(state.domain)
-#         Y.remove(var)
-#         for y in Y:
-#             if not check_consistent(new_data, pos):
-#         if not check_consistent(new_data, pos):
-#             # remove d from CurDom(x)
-#             domain[var].remove(pos)
-#         else:  # consistent, keep this pos
+#         # child state
+#         child = State(ships=new_ships, assigned=new_assigned,
+#                       data=new_data, parent=state)
+#         preprocessing(child)
+#         print(print_data(child))
+
+#         DWO = False
+#         # check if any other variable result in DWO if var -> pos
+#         i = index-1  # there are index-1 num of other var need to be assigned
+#         while i >= 0:
+#             next_arrangements = create_domain(child, variables[i])
+#             print(next_arrangements)
+#             next_arrangements = make_r_const(child, i, next_arrangements)
+#             print(next_arrangements)
+#             next_arrangements = make_c_const(child, i, next_arrangements)
+#             print(next_arrangements)
+#             next_arrangements = make_non_overlapping_const(
+#                 child, index, next_arrangements)
+#             print(next_arrangements)
+#             if not next_arrangements:
+#                 DWO = True
+#                 break
+#             i -= 1
+
+#         if not DWO:
+#             return FC(child, variables[index-1], index-1, next_arrangements)
+#         else:
 #             continue
-#     if len(domain) == 0:
-#         return 'DWO'
-
-def GAC(state):
-    """ """
-    domain = state.domain
-
-    if all_assigned(state):  # all ships assigned, exit with curr state
-        return state
-
-    var = MRV(state)
-
-    # not exit, var should be a ship
-    print(state.ships)
-    state.ships[var] += 1
-    print(state.ships)
-    for pos in domain[var]:
-        print(var, pos)
-        new_data = deepcopy(state.data)
-        print(print_data(state))
-        # new board with the ship placed
-        insert_into_board(new_data, var, pos)
-
-        new_domain = deepcopy(state.domain)
-        new_ships = deepcopy(state.ships)
-        child = State(parent=state, data=new_data,
-                      domain=new_domain, ships=new_ships)
-        update_domain(child, var, pos)
-
-        print("inserted: \n")
-        print(print_data(child))
-        print(print_domain(child))
-
-        # if assigning this variable with pos violate one of the constraints, (already removed) try next pos
-        if not check_consistent(child.data, pos):
-            continue
-        else:  # not violate, assign other variables
-            res = GACEnforce(child)
-            # child returns DWO
-            if res == "DWO":
-                continue
-            else:
-                return res
-        # i += 1
-    # shouldn't reach here
-    # if so, there's no valid pos to place this ship
-    print("ERROR")
-    exit()
 
 
-def GACEnforce(state):
-    """ """
-    domain = state.domain
-
-    for x in state.domain:
-        if state.ships[x] != ship_const[x] and len(domain[x]) == 0:
-            return "DWO"
-
-    if all_assigned(state):  # all ships assigned, exit with curr state
-        return state
-
-    # for an unassigned variable
-    var = MRV(state)
-
-    # not exit, var should be a ship
-    print(state.ships)
-    state.ships[var] += 1
-    print(state.ships)
-    for pos in domain[var]:
-        print(var, pos)
-        # while i < total:
-        # grab another variable
-
-        # var = MRV(state)
-        # state.ships[var] += 1
-        # if ship_const[var] == state.ships[var]:
-        #     # no other this kind of ship need to be placed, go to the next kind (ie Cruiser)
-
-        # assign this var to pos (place this var ship in pos)
-        new_data = deepcopy(state.data)
-        print(print_data(state))
-        # new board with the ship placed
-        insert_into_board(new_data, var, pos)
-
-        new_domain = deepcopy(state.domain)
-        new_ships = deepcopy(state.ships)
-        child = State(parent=state, data=new_data,
-                      domain=new_domain, ships=new_ships)
-        update_domain(child, var, pos)
-
-        print("inserted: \n")
-        print(print_data(child))
-        print(print_domain(child))
-
-        # if assigning this variable with pos violate one of the constraints, (already removed) try next pos
-        if not check_consistent(child.data, pos):
-            domain[var].remove(pos)
-
-            print(var, child.ships)
-            print(print_domain(child))
-            print(child.ships[var] != ship_const[var],
-                  len(child.domain[var]) == 0)
-
-            # if there's no more other choice for var
-            # if child.ships[var] != ship_const[var] and len(child.domain[var]) == 0:
-            #     return "DWO"
-            # else:
-            #     continue
-            # if there's other choice for var, assign other val
-            print(child.domain[var])
-            if len(child.domain[var]) > 0:
-                print("next")
-                continue
-            else:
-                return "DWO"
-        # else:  # not violate, assign other variables
-        res = GACEnforce(child)
-        # child returns DWO
-        print(res)
-        if res == "DWO":
-            # TODO: need to figure out if DWO can be solve in this stage
-            print(var, state.domain[var])
-            if len(state.domain[var]) > 0:
-                print("next")
-                continue
-            else:
-                print("DWO")
-                return "DWO"
-        else:
-            return res
-        # i += 1
-    # shouldn't reach here
-    # if so, there's no valid pos to place this ship
-    print("ERROR")
-    exit()
-
-
+def is_empty(domain):
+    for positions in domain:
+        for pos in positions:
+            if len(pos) != 0:
+                return False
+    return True
 ######################################## read, output file ###############################
 
 
@@ -795,16 +857,16 @@ def print_data(state):  # check
     return result
 
 
-def print_domain(state):  # check
-    result = ""
-    domain = state.domain
-    for x in state.domain:
-        result += x
-        result += ": "
-        for j in range(len(domain[x])):
-            result += str(domain[x][j])
-        result += "\n"
-    return result
+# def print_domain(state):  # check
+#     result = ""
+#     domain = state.domain
+#     for x in state.domain:
+#         result += x
+#         result += ": "
+#         for j in range(len(domain[x])):
+#             result += str(domain[x][j])
+#         result += "\n"
+#     return result
 
 
 def to_list(string):
@@ -819,30 +881,52 @@ def read_file(filename):
     row_line = file.readline()
     global row_const
     row_const = to_list(row_line)
-    print(row_const)
+    # print(row_const)
 
     col_line = file.readline()
     global col_const
     col_const = to_list(col_line)
-    print(col_const)
+    # print(col_const)
 
     ships_line = file.readline()
     ships_const = to_list(ships_line)
+
+    my_ship = []
     if len(ships_const) == 1:
         ship_const["S"] = ships_const[0]
+        for i in range(ships_const[0]):
+            my_ship.append(1)
     if len(ships_const) == 2:
         ship_const["S"] = ships_const[0]
         ship_const["D"] = ships_const[1]
+        for i in range(ships_const[1]):
+            my_ship.append(1)
+        for i in range(ships_const[0]):
+            my_ship.append(2)
     if len(ships_const) == 3:
         ship_const["S"] = ships_const[0]
         ship_const["D"] = ships_const[1]
         ship_const["C"] = ships_const[2]
+        for i in range(ships_const[0]):
+            my_ship.append(1)
+        for i in range(ships_const[1]):
+            my_ship.append(2)
+        for i in range(ships_const[2]):
+            my_ship.append(3)
     if len(ships_const) == 4:
         ship_const["S"] = ships_const[0]
         ship_const["D"] = ships_const[1]
         ship_const["C"] = ships_const[2]
         ship_const["B"] = ships_const[3]
-    # print(ship_const)
+        for i in range(ships_const[0]):
+            my_ship.append(1)
+        for i in range(ships_const[1]):
+            my_ship.append(2)
+        for i in range(ships_const[2]):
+            my_ship.append(3)
+        for i in range(ships_const[3]):
+            my_ship.append(4)
+    print(my_ship)
 
     global dim
     dim = len(row_line)-1
@@ -857,24 +941,31 @@ def read_file(filename):
             new_data[i][j] = str(row[j])
 
     # ships dict to count the num of each ship
-    ships = count_ships(new_data)
-
+    # ships = count_ships(new_data)
+    for i in range(dim):
+        for j in range(dim):
+            if new_data[i][j] == 'S':
+                # exists a sub on board
+                my_ship.remove(1)
+            elif new_data[i][j] == 'D':
+                my_ship.remove(2)
+            elif new_data[i][j] == 'C':
+                my_ship.remove(3)
+            elif new_data[i][j] == 'B':
+                my_ship.remove(4)
+    # print(my_ship)
     # domain (list of possible locations) of each ship
-    domain = defaultdict(list)
-    domain["B"] = []
-    domain["C"] = []
-    domain["D"] = []
-    domain["S"] = []
+    assigned = [[] for _ in range(len(my_ship))]
 
-    # global assigned
-    # assigned = [[False for _ in range(length)] for _ in range(length)]
+    global variables
+    variables = deepcopy(my_ship)
 
-    res = State(ships=ships, domain=domain, data=new_data)
+    res = State(ships=my_ship, assigned=assigned, data=new_data)
 
-    preprocessing(res)
+    # preprocessing(res)
 
     # create domains for each variable based on data
-    domains(res)
+    # domains(res)
     # print("after eliminate domain: \n", print_domain(res))
 
     file.close()
@@ -886,7 +977,7 @@ def output_file(filename, state):
 
     file = open(filename, "w")
 
-    final = GAC(state)
+    final = FC(state)
     file.write(print_data(final))
     file.close()
 
@@ -898,12 +989,14 @@ if __name__ == '__main__':
 
     init = read_file("Battleship/test_grid.txt")
     print(print_data(init))
-    final = GAC(init)
-    print(print_data(final))
-
+    # print(MRV(init.ships))
+    preprocessing(init)
+    ship_type = MRV(init.ships)
+    arrangements = create_domain(init.data, ship_type)
+    # board = insert_into_board(init.data, ship_type, arrangements[0])
+    result, final = FC(init, init.ships, arrangements, init.data)
     # preprocessing(init)
-    # print(MRV(init))
-    # print("final: \n", print_data(init))
+    print("final: \n", print_data(final))
 
     # FC(init)
     # print(print_data(init))
