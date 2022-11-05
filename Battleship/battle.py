@@ -48,11 +48,9 @@ def preprocessing(state):  # checked
 
     # surround my_ship with W
     update_data(state.data)
-    # print("after update_data: \n", print_data(state))
 
     # add W based on row & col constraints
     update_const(state.data)
-    # print("after update_const: \n", print_data(state))
 
 
 def update_data(data):  # checked
@@ -161,7 +159,6 @@ def update_const(data):  # checked
     """
     if match_ships(data):
         # my_ship number matched, filled the rest of the board with W
-        # print("my_ship checked")
         for i in range(dim):
             for j in range(dim):
                 if data[i][j] == '0':
@@ -171,13 +168,11 @@ def update_const(data):  # checked
     for i in range(len(row_const)):
         if match_row_const(data, i):
             # row_num matches, need to filled out the rest squares on this row with W
-            # print("row number " + str(i) + " is satisfied")
             for j in range(dim):
                 if data[i][j] == '0':
                     data[i][j] = 'W'
         if match_col_const(data, i):
             # col_num matches, need to filled out the rest squares on this row with W
-            # print("col number " + str(i) + " is satified")
             for j in range(dim):
                 if data[j][i] == '0':
                     data[j][i] = 'W'
@@ -197,7 +192,7 @@ def match_row_const(data, row_num):  # checked
 
 
 def check_row_const(data, row_num):  # checked
-    """ check if assigning new ship will exceed the col number, data should be new_data"""
+    """ check if this assigned board will exceed the col number """
     row = data[row_num]
     total = 0
     for i in range(len(row)):
@@ -305,6 +300,18 @@ def create_domain(data, var):
                 if j+3 <= dim-1 and data[i][j] == '0' and data[i][j+1] == '0' and data[i][j+2] == '0' and data[i][j+3] == '0':
                     # there is space to place a horizontal battleship
                     domain.append([[i, j], [i, j+1], [i, j+2], [i, j+3]])
+                if j-1 > 0 and j+2 < dim-1 and data[i][j] == 'M' and data[i][j-1] == '0' and data[i][j+1] == '0' and data[i][j+2] == '0':
+                    # horizontal xMxx battleship
+                    domain.append([[i, j-1], [i, j], [i, j+1], [i, j+2]])
+                if j-2 > 0 and j+1 < dim-1 and data[i][j] == 'M' and data[i][j-2] == '0' and data[i][j-1] == '0' and data[i][j+1] == '0':
+                    # horizontal xxMx battleship
+                    domain.append([[i, j-2], [i, j-1], [i, j], [i, j+1]])
+                if i-1 > 0 and i+2 < dim-1 and data[i][j] == 'M' and data[i-1][j] == '0' and data[i+1][j] == '0' and data[i+2][j]:
+                    # vertical xMxx battleship
+                    domain.append([[i-1, j], [i, j], [i+1, j], [i+2, j]])
+                if i-2 > 0 and i+1 < dim-1 and data[i][j] == 'M' and data[i-2][j] == '0' and data[i-1][j] == '0' and data[i+1][j]:
+                    # vertical xxMx battleship
+                    domain.append([[i-2, 1], [i-1, j], [i, j], [i+1, j]])
             elif var == 3:
                 if i+2 <= dim-1 and data[i][j] == '0' and data[i+1][j] == '0' and data[i+2][j] == '0':
                     # there is space to place a vertical cruiser
@@ -312,6 +319,12 @@ def create_domain(data, var):
                 if j+2 <= dim-1 and data[i][j] == '0' and data[i][j+1] == '0' and data[i][j+2] == '0':
                     # there is space to place a horizontal cruiser
                     domain.append([[i, j], [i, j+1], [i, j+2]])
+                if j > 0 and j < dim-1 and data[i][j] == 'M' and data[i][j-1] == '0' and data[i][j+1] == '0':
+                    # horizontal cruiser with E in the middle
+                    domain.append([[i, j], [i, j-1], [i, j+1]])
+                if i > 0 and i < dim-1 and data[i][j] == 'M' and data[i-1][j] == '0' and data[i+1][j] == '0':
+                    # vertical cruiser with E in the middle
+                    domain.append([[i, j], [i-1, j], [i+1, j]])
             elif var == 2:
                 if i+1 <= dim-1 and data[i][j] == '0' and data[i+1][j] == '0':
                     # there is space to place a vertical destroyer
@@ -413,21 +426,13 @@ def update_domain(state, var, pos):  # checked
     s = surround(pos)
     for x in domain:
         if x == var:
-            # origin = deepcopy(domain[x])
-            # domain[x].remove(pos)
-            # if len(origin) == len(domain[x]):
-            #    print("fail to remove from domain")
             continue
         else:  # for Y
-            # print(x)
             y = 0
             while y < len(domain[x]):
-                # print(y)
                 for k in domain[x][y]:
                     if k in s:
-                        # print(domain[x])
                         l = domain[x].pop(y)
-                        # print(domain[x])
                         y -= 1
                         break
                 y += 1
@@ -435,7 +440,6 @@ def update_domain(state, var, pos):  # checked
     # eliminate violate row or col constraint
     for x in domain:
         y = 0
-        # print(x, domain[x])
         while y < len(domain[x]):
             for pos in domain[x][y]:
                 i, j = pos[0], pos[1]
@@ -515,7 +519,7 @@ def check_overlapping(data, pos):  # checked
 
 def check_consistent(data, pos):  # checked
     """
-    check if all constraints that is related to var are consistent
+    check if assigned data and the assigned pos (len = 3 for C) follow all constraints
     return True if all constraints are satisfied
     return False if there's one constraints that is violated
     """
@@ -558,7 +562,6 @@ def check_consistent(data, pos):  # checked
 
     # check if overlap or next to
     res.append(check_overlapping(data, pos))
-    print(res)
     return all(res)
 
 
@@ -588,7 +591,7 @@ def check_r_const(data, row_num, num_squares):
         return False
 
 
-def make_r_const(data, new_var_index, pos):  # ?
+def make_r_const(data, var, pos):  # ?
     """ 
     row constraint
     input should be a domain of all possible positions
@@ -597,7 +600,6 @@ def make_r_const(data, new_var_index, pos):  # ?
     if not pos:  # pos is None
         return None
     res = []
-    var = variables[new_var_index]
     if var == 1:  # S
         for i in range(len(pos)):
             if check_r_const(data, pos[i][0][0], 1):
@@ -730,111 +732,48 @@ def MRV(ships):  # checked
     if len(ships) > 0:
         return ships.pop()
     else:
-        print("nothing to pop")
         return None
 
 
-def FC(state, ships, arrangements, current_board):
+def FC(state, ship_type, ships, arrangements, current_board):
     """ Forward checking"""
 
     if all_assigned(state):
         return (True, current_board)
-    if (len(ships)) > len(arrangements):
-        return (False, current_board)
-    if len(ships) == 0:
-        print(print_data(state))
-
-    for row in current_board:
-        print(row)
-        print("\n")
-
-    var = ships[len(ships)-1]
-    next_arrangements = create_domain(state.data, var)
-
-    next_arrangements = make_r_const(
-        state.data, len(ships)-1, next_arrangements)
-    print(next_arrangements)
-    next_arrangements = make_c_const(
-        state.data, len(ships)-1, next_arrangements)
-    print(next_arrangements)
-    next_arrangements = make_non_overlapping_const(
-        state, len(ships), next_arrangements)
-    print(next_arrangements)
-
-    if not next_arrangements:
+    if len(arrangements) == 0:
         return (False, current_board)
 
-    for arrangement in next_arrangements:
-        current_board = insert_into_board(state.data, ships, arrangement)
+    arrangements = make_r_const(
+        current_board, ship_type, arrangements)
+    arrangements = make_c_const(
+        current_board, ship_type, arrangements)
+    arrangements = make_non_overlapping_const(
+        state, len(ships), arrangements)
+
+    if not arrangements:
+        return (False, current_board)
+
+    next_ships = deepcopy(ships)
+    next_ship = MRV(next_ships)
+
+    for arrangement in arrangements:
+        next_board = insert_into_board(current_board, ship_type, arrangement)
+        if not check_consistent(next_board, arrangement):
+            # this arrangement not consistent, try another one
+            continue
         assigned = deepcopy(state.assigned)
-        assigned[len(ships)-1] = arrangement
-        next_state = State(data=current_board, assigned=assigned, parent=state)
-        next_state.assigned[len(ships)-1] = arrangement
-        preprocessing(init)
-        result, board = FC(next_state, ships[0: len(
-            ships)-1], next_arrangements, current_board)
+        next_state = State(ships=next_ships, data=next_board,
+                           assigned=assigned, parent=state)
+        # next_state.assigned[len(ships)-1] = arrangement
+        preprocessing(next_state)
+        next_arrangements = create_domain(next_board, next_ship)
+        result, board = FC(next_state, next_ship, next_ships,
+                           next_arrangements, next_board)
 
         if result:
             return (True, board)
 
-    return (False, board)
-
-
-# def FC1(state, ship_type, index, domain):
-
-#     if all_assigned(state):
-#         return state
-
-#     # ships = state.ships
-#     # var = MRV(ships)
-#     # the index of this newly pop var is the last index on original ships (= len)
-#     # index = len(ships)
-
-#     preprocessing(state)
-#     print(print_data(state))
-#     # domain = create_domain(state, var)
-#     print(domain)
-#     assigned = state.assigned
-
-#     for pos in domain:
-
-#         # assign var to pos
-#         assigned[index] = pos
-
-#         # place var on pos
-#         new_data = deepcopy(state.data)
-#         insert_into_board(new_data, ship_type, pos)
-#         new_ships = deepcopy(state.ships)
-#         new_assigned = deepcopy(assigned)
-
-#         # child state
-#         child = State(ships=new_ships, assigned=new_assigned,
-#                       data=new_data, parent=state)
-#         preprocessing(child)
-#         print(print_data(child))
-
-#         DWO = False
-#         # check if any other variable result in DWO if var -> pos
-#         i = index-1  # there are index-1 num of other var need to be assigned
-#         while i >= 0:
-#             next_arrangements = create_domain(child, variables[i])
-#             print(next_arrangements)
-#             next_arrangements = make_r_const(child, i, next_arrangements)
-#             print(next_arrangements)
-#             next_arrangements = make_c_const(child, i, next_arrangements)
-#             print(next_arrangements)
-#             next_arrangements = make_non_overlapping_const(
-#                 child, index, next_arrangements)
-#             print(next_arrangements)
-#             if not next_arrangements:
-#                 DWO = True
-#                 break
-#             i -= 1
-
-#         if not DWO:
-#             return FC(child, variables[index-1], index-1, next_arrangements)
-#         else:
-#             continue
+    return (False, current_board)
 
 
 def is_empty(domain):
@@ -846,27 +785,14 @@ def is_empty(domain):
 ######################################## read, output file ###############################
 
 
-def print_data(state):  # check
+def print_data(data):  # check
     result = ""
-    data = state.data
     length = len(data[0])
     for i in range(length):
         for j in range(length):
             result += str(data[i][j])
         result += "\n"
     return result
-
-
-# def print_domain(state):  # check
-#     result = ""
-#     domain = state.domain
-#     for x in state.domain:
-#         result += x
-#         result += ": "
-#         for j in range(len(domain[x])):
-#             result += str(domain[x][j])
-#         result += "\n"
-#     return result
 
 
 def to_list(string):
@@ -881,12 +807,10 @@ def read_file(filename):
     row_line = file.readline()
     global row_const
     row_const = to_list(row_line)
-    # print(row_const)
 
     col_line = file.readline()
     global col_const
     col_const = to_list(col_line)
-    # print(col_const)
 
     ships_line = file.readline()
     ships_const = to_list(ships_line)
@@ -926,13 +850,11 @@ def read_file(filename):
             my_ship.append(3)
         for i in range(ships_const[3]):
             my_ship.append(4)
-    print(my_ship)
 
     global dim
     dim = len(row_line)-1
 
     length = dim
-    # print(length)
 
     new_data = [["0" for _ in range(length)] for _ in range(length)]
     for i in range(length):
@@ -953,7 +875,7 @@ def read_file(filename):
                 my_ship.remove(3)
             elif new_data[i][j] == 'B':
                 my_ship.remove(4)
-    # print(my_ship)
+
     # domain (list of possible locations) of each ship
     assigned = [[] for _ in range(len(my_ship))]
 
@@ -962,41 +884,28 @@ def read_file(filename):
 
     res = State(ships=my_ship, assigned=assigned, data=new_data)
 
-    # preprocessing(res)
-
-    # create domains for each variable based on data
-    # domains(res)
-    # print("after eliminate domain: \n", print_domain(res))
-
     file.close()
     return res
 
 
-def output_file(filename, state):
+def output_file(filename, init):
     """ print FC output into file """
 
     file = open(filename, "w")
 
-    final = FC(state)
+    preprocessing(init)
+    ship_type = MRV(init.ships)
+    arrangements = create_domain(init.data, ship_type)
+    result, final = FC(init, ship_type, init.ships, arrangements, init.data)
     file.write(print_data(final))
     file.close()
 
 
 if __name__ == '__main__':
 
-    # init = read_file(sys.argv[1])
-    # output_file(sys.argv[2], init)
-
-    init = read_file("Battleship/test_grid.txt")
-    print(print_data(init))
-    # print(MRV(init.ships))
-    preprocessing(init)
-    ship_type = MRV(init.ships)
-    arrangements = create_domain(init.data, ship_type)
-    # board = insert_into_board(init.data, ship_type, arrangements[0])
-    result, final = FC(init, init.ships, arrangements, init.data)
-    # preprocessing(init)
-    print("final: \n", print_data(final))
-
-    # FC(init)
-    # print(print_data(init))
+    init = read_file(sys.argv[1])
+    # print(print_data(init.data))
+    output_file(sys.argv[2], init)
+    # print("output")
+    # init = read_file("input_easy1.txt")
+    # output_file("output_file", init)
