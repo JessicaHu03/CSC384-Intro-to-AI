@@ -9,44 +9,229 @@ import numpy as np
 tags = ["AJ0", "AJC", "AJS", "AT0", "AV0", "AVP", "AVQ", "CJC", "CJS", "CJT", "CRD", "DPS", "DT0", "DTQ", "EX0", "ITJ", "NN0", "NN1", "NN2", "NP0", "ORD", "PNI", "PNP", "PNQ", "PNX", "POS", "PRF", "PRP", "PUL", "PUN", "PUQ", "PUR", "TO0", "UNC", "VBB", "VBD", "VBG", "VBI", "VBN", "VBZ", "VDB", "VDD",
         "VDG", "VDI", "VDN", "VDZ", "VHB", "VHD", "VHG", "VHI", "VHN", "VHZ", "VM0", "VVB", "VVD", "VVG", "VVI", "VVN", "VVZ", "XX0", "ZZ0", "AJ0-AV0", "AJ0-VVN", "AJ0-VVD", "AJ0-NN1", "AJ0-VVG", "AVP-PRP",  "AVQ-CJS", "CJS-PRP", "CJT-DT0", "CRD-PNI", "NN1-NP0", "NN1-VVB", "NN1-VVG", "NN2-VVZ", "VVD-VVN"]
 
-observations = []
 
-init_prob = {tag: 0 for tag in tags}  # init prob for each tag
-transit_prob = {tag: {t: 0 for t in tags}
-                for tag in tags}  # transit prob of a tag_y show after tag_x
-# emit prob of a word when seeing this tag
-emit_prob = {tag: {} for tag in tags}
+def viterbi0(y, A, B, Pi):
+    """
+    Return the MAP estimate of state trajectory of Hidden Markov Model.
+
+    Parameters
+    ----------
+    y : array (T,)
+        Observation state sequence. int dtype.
+    A : array (K, K)
+        State transition matrix. See HiddenMarkovModel.state_transition  for
+        details.
+    B : array (K, M)
+        Emission matrix. See HiddenMarkovModel.emission for details.
+    Pi: optional, (K,)
+        Initial state probabilities: Pi[i] is the probability x[0] == i. If
+        None, uniform initial distribution is assumed (Pi[:] == 1/K).
+
+    Returns
+    -------
+    x : array (T,)
+        Maximum a posteriori probability estimate of hidden state trajectory,
+        conditioned on observation sequence y under the model parameters A, B,
+        Pi.
+    T1: array (K, T)
+        the probability of the most likely path so far
+    T2: array (K, T)
+        the x_j-1 of the most likely path so far
+    """
+    # Cardinality of the state space
+    K = A.shape[0]
+    # Initialize the priors with default (uniform dist) if not given by caller
+    Pi = Pi if Pi is not None else np.full(K, 1 / K)
+    T = len(y)
+    T1 = np.zeros((K, T), 'd')
+
+    # Initilaize the tracking tables from first observation
+    T1[:, 0] = Pi * B[:, y[0]]
+    T2[:, 0] = 0
+
+    # Iterate throught the observations updating the tracking tables
+    for i in range(1, T):
+        T1[:, i] = np.max(T1[:, i - 1] * A.T * B[np.newaxis, :, y[i]].T, 1)
+        T2[:, i] = np.argmax(T1[:, i - 1] * A.T, 1)
+
+    # Build the output, optimal model trajectory
+    x = np.zeros(T, 'B')
+    x[-1] = np.argmax(T1[:, T - 1])
+    for i in reversed(range(1, T)):
+        x[i - 1] = T2[x[i], i]
+
+    return x, T1, T2
 
 
-def viterbi(E, S, I, T, M):
-    # row t = time step t = all possible tags for observation t
-    # # rows = time step = # observations, # cols = # tags
-    prob = np.arange(len(E) * len(S)).reshape(len(E), len(S))
-    prev = [[None for _ in range(len(S))] for _ in range(len(E))]
+def handle_unseen_words(tag_index, num_words, word_index, initial_prob, end_prob, freq_prob):
+    """ Assign an emission prob to a word never seen before """
+    prob = 0
+    if word_index == 0:  # beginning of the sentence
+        prob = initial_prob[tag_index] * freq_prob[tag_index]
+    elif word_index == num_words - 1:  # end of a sentence
+        prob = end_prob[tag_index] * freq_prob[tag_index]
+    else:  # in the middle
+        prob = freq_prob[tag_index]  # TODO
+    return prob
 
-    # determine values for time step 0
-    for i in range(len(tags)-1):
-        prob[0][i] = init_prob[tags[i]] * emit_prob[tags[i]][observations[0]]
-        prev[0][i] = None
-    print(prob)
 
-    # find each current state's most likely prior state x
-    for t in range(1, len(observations)-1):
-        for i in range(len(tags)-1):
-            x = max(prob[t-1][x] * transit_prob[x][i]) * \
-                emit_prob[i][observations[t]]
-            #
-            prob[t][i] = prob[t-1][x] * transit_prob[x][i] * \
-                emit_prob[i][observations[t]]
-            prev[t][i] = x
+def viterbi(O, S, I, E, T, M, F):
+    """
+    Return the most likely path in a HMM given a sentence
 
-    return prob, prev
+    Inputs:
+    O: observations array (words)
+    S: hidden states (tags)
+    I: initial probability      I[tag_index]
+    E: end prob                 E[tag_index]
+    T: transition prob          T[prev_tag_index][tag_index]
+    M: Emission prob            M[tag_index][word]
+    F: frequency prob           F[tag_index]
 
-# def create_initial_prob():
-#     """ """
-# def create_transition_prob():
+    Outputs:
+    path: the most likely path of given observations
+    prob: the probability of most likely states
+    prev: the most likely previous state
 
-# def create_emission_prob():
+    TODO: for a word that have encountered before but not in the desire tag, ???
+    TODO: check the path forward and backward with reverse transition prob
+    """
+    # dimensions
+    L = len(O)
+    W = len(S)      # 76
+
+    # Initialize the prob and prev matrix
+    prob = np.zeros([L, W])
+    prev = np.zeros([L, W])
+
+    # Initialize the basecase (first word)
+    for i in range(len(S)):
+        if O[0] not in M[i]:
+            # M[i][O[0]] = handle_unseen_words(i, len(O), 0, I, E, F)
+            M[i][O[0]] = 0.1
+        prob[0, i] = I[i] * M[i][O[0]]
+        prev[0, i] = np.NaN
+
+    # Iterate throught the observations updating the tracking tables
+    for t in range(1, len(O)):
+        for i in range(len(S)):
+            if O[t] not in M[i]:
+                # M[i][O[t]] = handle_unseen_words(i, len(O), t, I, E, F)
+                M[i][O[t]] = 0.1
+            max_index = np.argmax(prob[t-1, :] * T[:][i] * M[i][O[t]])
+            prob[t, i] = prob[t-1, max_index] * T[max_index][i] * M[i][O[t]]
+            prev[t, i] = max_index
+
+    # print(prob)
+    # print(prev)
+
+    # last_max_index = np.argmax(prob[L - 1, :])
+    # print(tags[last_max_index])
+    # second_last = prev[L-1, last_max_index]
+    # print(tags[int(second_last)])
+
+    # Build the output, optimal model trajectory
+    path = ['' for _ in range(len(O))]
+    last_max_index = np.argmax(prob[L - 1, :])
+    path[-1] = tags[int(last_max_index)]
+    # print("path[-1]: ", path[-1])
+    for i in reversed(range(1, L)):
+        new_max_index = prev[i, last_max_index]
+        # print(tags[int(new_max_index)])
+        path[i-1] = tags[int(new_max_index)]
+        last_max_index = int(new_max_index)
+
+    # print(path)
+    return path, prob, prev
+
+
+def HMM(train_data):
+    """
+    Construct the init_prob, end_prob, transit_prob, emit_prob, freq_prob model from training data
+
+    Outputs: 
+    init_prob: the prob of how likely each tag starts a sentence. Each value with index i represents the corresponding tag at index i in tags
+    transit_prob: each (i, j) element stores the transit prob of tag j given tag i
+    emit_prob: (word, tag) pair as key and the emit prob of word given tag as value
+    """
+    num_tags = len(tags)
+    # the prob of a tag showing up in the beginning of the sentence
+    init_prob = np.zeros(num_tags)
+    # the prob of a tag showing up in the end of the sentence
+    end_prob = np.zeros(num_tags)
+    transit_prob = np.zeros((num_tags, num_tags))
+    emit_prob = [{} for _ in range(num_tags)]
+    freq_prob = np.zeros(num_tags)  # the prob of a tag showing up generally
+
+    first_pair = train_data[0]
+    first_word, first_tag = first_pair
+    init_prob[tags.index(first_tag)] += 1
+
+    num_sentence = 1
+    prev_tag = first_tag
+    prev_word = first_word
+
+    for word, tag in train_data[1:]:
+
+        if prev_word == ".":
+            # the words after "." are the begining of a new sentence
+            num_sentence += 1
+            init_prob[tags.index(tag)] += 1
+
+        if word == ".":
+            # the words before "." are the end of a sentence
+            end_prob[tags.index(prev_tag)] += 1
+
+        transit_prob[tags.index(prev_tag)][tags.index(tag)] += 1
+
+        if word not in emit_prob[tags.index(tag)]:
+            emit_prob[tags.index(tag)][word] = 1
+        else:
+            emit_prob[tags.index(tag)][word] += 1
+
+        freq_prob[tags.index(tag)] += 1
+
+        prev_word = word
+        prev_tag = tag
+
+    # now we have each prob with counting as value, we need to switch it to prob
+
+    # change the value of init_prob from count to percentage
+    for i in range(len(init_prob)):
+        count = init_prob[i]
+        percentage = count / num_sentence
+        init_prob[i] = percentage
+
+    # change the value of end_prob from count to percentage
+    for i in range(len(end_prob)):
+        count = end_prob[i]
+        percentage = count / num_sentence
+        end_prob[i] = percentage
+
+    # change the value of transit_prob from count to percentage
+    for i in range(len(transit_prob)):
+        total = sum(transit_prob[i])
+        for j in range(len(transit_prob[i])):
+            count = transit_prob[i][j]
+            percentage = count / total
+            transit_prob[i][j] = percentage
+
+    # change the value of emit_prob from count to percentage
+    for i in range(len(emit_prob)):
+        total = sum(list(emit_prob[i].values()))
+        for word in emit_prob[i]:
+            count = emit_prob[i][word]
+            percentage = count / total
+            emit_prob[i][word] = percentage
+
+    # change the value of freq_prob from count to percentage
+    total = sum(freq_prob)
+    for i in range(len(freq_prob)):
+        count = freq_prob[i]
+        percentage = count / total
+        freq_prob[i] = percentage
+
+    return init_prob, end_prob, transit_prob, emit_prob, freq_prob
 
 
 def handle_ambiguity(tag):
@@ -86,126 +271,91 @@ def handle_ambiguity(tag):
     return tag
 
 
-def read_training_list(training_filename):
-    """ read the training file and construct needed model"""
-    # count the number of times each tag appears at the beginning of a sentence
-    num_sentence = 0
+def read_training_list(training_files):
+    """ read the training files and construct needed model"""
 
-    file = open(training_filename, "r")
+    if len(training_files) == 0:
+        print("Not valid file")
+        return
 
-    prev_tag = None
-    prev_word = None
+    elif len(training_files) == 1:
+        res = []
+        file = open(training_files[0], "r")
+        for line in file.read().split('\n')[:-1]:
+            pair = line.split(' : ')
+            word, tag = pair[0], handle_ambiguity(pair[1])
+            res.append((word, tag))
 
-    for i, pair in enumerate(file):
-        pair = pair.split()
-        word = pair[0]
-        tag = handle_ambiguity(pair[-1])
+        file.close()
+        return res
 
-        if tag not in emit_prob:
-            # new tag!
-            tags.append(tag)
-            emit_prob[tag] = {}
-            init_prob[tag] = 1
+    else:  # more than one training files
+        res = []
+        for filename in training_files:
+            file = open(filename, "r")
+            for line in file.read().split('\n')[:-1]:
+                res.append(tuple(line.split(' : ')))
+            file.close()
+        return res
 
-        if i == 0 or prev_word == ".":
-            # the first word and the words after "." are the begining of a new sentence
-            num_sentence += 1
-            init_prob[tag] += 1
 
-        # count the number of tag showing after prev_tag
-        if prev_tag:
-            transit_prob[prev_tag][tag] += 1
-
-        if word not in observations:
-            observations.append(word)
-
-        # count the number of words given tag
-        if word not in emit_prob[tag]:
-            emit_prob[tag][word] = 1
-        else:  # this word have seen before
-            emit_prob[tag][word] += 1
-
-        prev_word = word
-        prev_tag = tag
-
-    # now we have a dict in dict with counting, we need to switch it to prob model
-
-    # change the value of init_prob from count to percentage
-    for tag_x in init_prob:
-        count = init_prob[tag_x]
-        percentage = count / num_sentence
-        init_prob[tag_x] = percentage
-
-    # change the value of transit_prob from count to percentage
-    for tag_x in transit_prob:
-        dict = transit_prob[tag_x]
-
-        # sum total number of tags that comes after this tag
-        num_tags = 0
-        for tag_y in dict:
-            num_tags += dict[tag_y]
-
-        for tag_y in tags:
-            if tag_y not in dict:  # tag_y never come after tag_x
-                count = 0
-            else:  # come after
-                count = dict[tag_y]
-
-            percentage = count / num_tags
-            transit_prob[tag_x][tag_y] = percentage
-
-    # change the value of emit_prob from count to percentage
-    for tag_x in emit_prob:
-        dict = emit_prob[tag_x]
-
-        # sum total number of words given tag_x
-        num_words = 0
-        for word_x in dict:
-            num_words += dict[word_x]
-
-        for word_x in observations:
-            if word_x not in dict:
-                count = 0
-            else:
-                count = dict[word_x]
-            percentage = count / num_words
-            emit_prob[tag_x][word_x] = percentage
-
+def read_test_file(filename):
+    """ read the test file and store the words in test_words """
+    file = open(filename, "r")
+    res = []
+    sentence = []
+    for line in file.read().split('\n')[:-1]:
+        if str(line) != '.':
+            # not the end of sentence, put this word into sentence
+            sentence.append(str(line))
+        else:  # this is the end of the sentence
+            sentence.append(str(line))
+            res.append(sentence)
+            sentence = []
     file.close()
+    return res
 
 
-def output_file(output_filename):
+def write_file(output_filename, input, results):
     """ print the test output into file """
 
     file = open(output_filename, "w")
-
-    next_state = Minimax(state)
-
-    file.write(output_format(next_state))
-
+    assert (len(input) == len(results))
+    for i in range(len(results)):
+        for j in range(len(results[i])):
+            file.write(input[i][j] + " : " + results[i][j])
+            file.write('\n')
     file.close()
 
 
 def tag(training_list, test_file, output_file):
     # Tag the words from the untagged input file and write them into the output file.
     # Doesn't do much else beyond that yet.
-    print("Tagging the file.")
+    # print("Tagging the file.")
 
     # count and fill in the global variables on training files
-    read_training_list(training_list)
+    train_data = read_training_list(training_list)
+    test_data = read_test_file(test_file)
+    init_prob, end_prob, transit_prob, emit_prob, freq_prob = HMM(train_data)
 
-    # run viterbi to create a HMM (hidden = tags, evidence = words)
-    viterbi(observations, tags, init_prob, transit_prob, emit_prob)
+    result = []
+    for sentence in test_data:
+        # print(sentence)
+        path, prob, prev = viterbi(
+            sentence, tags, init_prob, end_prob, transit_prob, emit_prob, freq_prob)
+        # print(path)
+        result.append(path)
+    write_file(output_file, test_data, result)
 
 
 if __name__ == '__main__':
     # Run the tagger function.
-    print("Starting the tagging process.")
+    # print("Starting the tagging process.")
 
     # Tagger expects the input call: "python3 tagger.py -d <training files> -t <test file> -o <output file>"
-    # parameters = sys.argv
-    parameters = "py tagger.py -d data/training1.txt -t data/test1.txt -o data/output1.txt"
-    training_list = parameters[parameters.index("-d")+3:parameters.index("-t")]
+    parameters = sys.argv
+    # parameters = "py tagger.py -d data/training1.txt -t data/test1.txt -o output1.txt".split()
+    training_list = parameters[parameters.index("-d")+1:parameters.index("-t")]
     test_file = parameters[parameters.index("-t")+1]
     output_file = parameters[parameters.index("-o")+1]
     # print("Training files: " + str(training_list))
