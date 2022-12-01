@@ -26,12 +26,12 @@ def handle_unseen_words(tag_index, num_words, word, word_index, initial_prob, en
     prob = 0
     if word_index == 0:  # beginning of the sentence
         prob = initial_prob[tag_index] * \
-            freq_prob[tag_index] * (1 / training_size)
+            freq_prob[tag_index] * (1 / (training_size ** 5))
     elif word_index == num_words - 1:  # end of a sentence
-        prob = end_prob[tag_index] * freq_prob[tag_index] * (1 / training_size)
-        if tags[tag_index] == 'PUN' and
+        prob = end_prob[tag_index] * \
+            freq_prob[tag_index] * (1 / (training_size ** 5))
     else:  # in the middle
-        prob = freq_prob[tag_index] * (1 / training_size) * 100
+        prob = freq_prob[tag_index] * (1 / (training_size ** 5))
     return prob
 
 
@@ -72,6 +72,11 @@ def viterbi(O, S, I, E, T, M, F):
         if O[0] not in M[i]:
             M[i][O[0]] = handle_unseen_words(i, len(O), O[0], 0, I, E, F)
             # M[i][O[0]] = F[i] * 0.0000000001
+        # if tags[i] == 'PUN':
+        #         if O[0] in punc:
+        #             M[i][O[0]] = M[i][O[0]] * training_size
+        #         else:
+        #             M[i][O[0]] = M[i][O[0]] * (1 / training_size)
         prob[0, i] = I[i] * M[i][O[0]]
         prev[0, i] = np.NaN
     # print("wanted tag is 'NP0' with prob " + str(prob[0, tags.index("NP0")]))
@@ -87,6 +92,11 @@ def viterbi(O, S, I, E, T, M, F):
             if O[t] not in M[i]:
                 M[i][O[t]] = handle_unseen_words(i, len(O), O[t], t, I, E, F)
                 # M[i][O[t]] = F[i] * 0.0000000001
+            # if tags[i] == 'PUN':
+            #     if O[t] in punc:
+            #         M[i][O[t]] = M[i][O[t]] * training_size
+            #     else:
+            #         M[i][O[t]] = M[i][O[t]] * (1 / training_size)
             max_index = np.argmax(prob[t-1, :] * T[:][i] * M[i][O[t]])
             # print(tags[max_index])
             prob[t, i] = prob[t-1, max_index] * T[max_index][i] * M[i][O[t]]
@@ -289,6 +299,9 @@ def read_training_list(training_files):  # checked
             for line in file.read().split('\n')[:-1]:
                 pair = line.split(' : ')
                 word, tag = pair[0], handle_ambiguity(pair[1])
+                if tag == 'PUN' and tag not in punc:
+                    punc.append(tag)
+
                 res.append((word, tag))
 
         file.close()
