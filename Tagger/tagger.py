@@ -8,70 +8,30 @@ import numpy as np
 # given possible tags and ambiguity tags
 tags = ["AJ0", "AJC", "AJS", "AT0", "AV0", "AVP", "AVQ", "CJC", "CJS", "CJT", "CRD", "DPS", "DT0", "DTQ", "EX0", "ITJ", "NN0", "NN1", "NN2", "NP0", "ORD", "PNI", "PNP", "PNQ", "PNX", "POS", "PRF", "PRP", "PUL", "PUN", "PUQ", "PUR", "TO0", "UNC", "VBB", "VBD", "VBG", "VBI", "VBN", "VBZ", "VDB", "VDD",
         "VDG", "VDI", "VDN", "VDZ", "VHB", "VHD", "VHG", "VHI", "VHN", "VHZ", "VM0", "VVB", "VVD", "VVG", "VVI", "VVN", "VVZ", "XX0", "ZZ0", "AJ0-AV0", "AJ0-VVN", "AJ0-VVD", "AJ0-NN1", "AJ0-VVG", "AVP-PRP",  "AVQ-CJS", "CJS-PRP", "CJT-DT0", "CRD-PNI", "NN1-NP0", "NN1-VVB", "NN1-VVG", "NN2-VVZ", "VVD-VVN"]
+training_size = 0
+punc = []
 
 
-def viterbi0(y, A, B, Pi):
-    """
-    Return the MAP estimate of state trajectory of Hidden Markov Model.
-
-    Parameters
-    ----------
-    y : array (T,)
-        Observation state sequence. int dtype.
-    A : array (K, K)
-        State transition matrix. See HiddenMarkovModel.state_transition  for
-        details.
-    B : array (K, M)
-        Emission matrix. See HiddenMarkovModel.emission for details.
-    Pi: optional, (K,)
-        Initial state probabilities: Pi[i] is the probability x[0] == i. If
-        None, uniform initial distribution is assumed (Pi[:] == 1/K).
-
-    Returns
-    -------
-    x : array (T,)
-        Maximum a posteriori probability estimate of hidden state trajectory,
-        conditioned on observation sequence y under the model parameters A, B,
-        Pi.
-    T1: array (K, T)
-        the probability of the most likely path so far
-    T2: array (K, T)
-        the x_j-1 of the most likely path so far
-    """
-    # Cardinality of the state space
-    K = A.shape[0]
-    # Initialize the priors with default (uniform dist) if not given by caller
-    Pi = Pi if Pi is not None else np.full(K, 1 / K)
-    T = len(y)
-    T1 = np.zeros((K, T), 'd')
-
-    # Initilaize the tracking tables from first observation
-    T1[:, 0] = Pi * B[:, y[0]]
-    T2[:, 0] = 0
-
-    # Iterate throught the observations updating the tracking tables
-    for i in range(1, T):
-        T1[:, i] = np.max(T1[:, i - 1] * A.T * B[np.newaxis, :, y[i]].T, 1)
-        T2[:, i] = np.argmax(T1[:, i - 1] * A.T, 1)
-
-    # Build the output, optimal model trajectory
-    x = np.zeros(T, 'B')
-    x[-1] = np.argmax(T1[:, T - 1])
-    for i in reversed(range(1, T)):
-        x[i - 1] = T2[x[i], i]
-
-    return x, T1, T2
+def normalize(L):
+    """ Normalize the probabilities in L """
+    total = sum(L)
+    for i in range(len(L)):
+        p = L[i]
+        percent = p / total
+        L[i] = percent
 
 
-def handle_unseen_words(tag_index, num_words, word_index, initial_prob, end_prob, freq_prob):
+def handle_unseen_words(tag_index, num_words, word, word_index, initial_prob, end_prob, freq_prob):
     """ Assign an emission prob to a word never seen before """
     prob = 0
     if word_index == 0:  # beginning of the sentence
-        prob = initial_prob[tag_index] * freq_prob[tag_index]
+        prob = initial_prob[tag_index] * \
+            freq_prob[tag_index] * (1 / training_size)
     elif word_index == num_words - 1:  # end of a sentence
-        prob = end_prob[tag_index] * freq_prob[tag_index]
+        prob = end_prob[tag_index] * freq_prob[tag_index] * (1 / training_size)
+        if tags[tag_index] == 'PUN' and
     else:  # in the middle
-        prob = freq_prob[tag_index]  # TODO
+        prob = freq_prob[tag_index] * (1 / training_size) * 100
     return prob
 
 
@@ -95,6 +55,8 @@ def viterbi(O, S, I, E, T, M, F):
 
     TODO: for a word that have encountered before but not in the desire tag, ???
     TODO: check the path forward and backward with reverse transition prob
+    TODO: for PUN and not PUN words
+    TODO: prefix and suffix
     """
     # dimensions
     L = len(O)
@@ -106,21 +68,30 @@ def viterbi(O, S, I, E, T, M, F):
 
     # Initialize the basecase (first word)
     for i in range(len(S)):
+        # take care of the 0s in emit
         if O[0] not in M[i]:
-            # M[i][O[0]] = handle_unseen_words(i, len(O), 0, I, E, F)
-            M[i][O[0]] = 0.1
+            M[i][O[0]] = handle_unseen_words(i, len(O), O[0], 0, I, E, F)
+            # M[i][O[0]] = F[i] * 0.0000000001
         prob[0, i] = I[i] * M[i][O[0]]
         prev[0, i] = np.NaN
+    # print("wanted tag is 'NP0' with prob " + str(prob[0, tags.index("NP0")]))
+    # max_tag_index = np.argmax(prob[0, :])
+    # print("the max tag is " + tags[max_tag_index] + " with prob " + str(prob[0, max_tag_index]))
+    normalize(prob[0, :])
+    # print(tags[np.argmax(prob[0, :])])
 
     # Iterate throught the observations updating the tracking tables
     for t in range(1, len(O)):
         for i in range(len(S)):
+            # take care of the 0s in emit
             if O[t] not in M[i]:
-                # M[i][O[t]] = handle_unseen_words(i, len(O), t, I, E, F)
-                M[i][O[t]] = 0.1
+                M[i][O[t]] = handle_unseen_words(i, len(O), O[t], t, I, E, F)
+                # M[i][O[t]] = F[i] * 0.0000000001
             max_index = np.argmax(prob[t-1, :] * T[:][i] * M[i][O[t]])
+            # print(tags[max_index])
             prob[t, i] = prob[t-1, max_index] * T[max_index][i] * M[i][O[t]]
             prev[t, i] = max_index
+        normalize(prob[t, :])
 
     # print(prob)
     # print(prev)
@@ -142,10 +113,10 @@ def viterbi(O, S, I, E, T, M, F):
         last_max_index = int(new_max_index)
 
     # print(path)
-    return path, prob, prev
+    return path
 
 
-def HMM(train_data):
+def HMM(train_data):  # checked
     """
     Construct the init_prob, end_prob, transit_prob, emit_prob, freq_prob model from training data
 
@@ -199,42 +170,64 @@ def HMM(train_data):
     # change the value of init_prob from count to percentage
     for i in range(len(init_prob)):
         count = init_prob[i]
-        percentage = count / num_sentence
+        percentage = count / \
+            num_sentence if not (
+                num_sentence == 0 or count == 0) else 0.0000000001
         init_prob[i] = percentage
+    normalize(init_prob)
 
     # change the value of end_prob from count to percentage
     for i in range(len(end_prob)):
         count = end_prob[i]
-        percentage = count / num_sentence
+        percentage = count / \
+            num_sentence if not (
+                num_sentence == 0 or count == 0) else 0.0000000001
         end_prob[i] = percentage
+    normalize(end_prob)
 
     # change the value of transit_prob from count to percentage
     for i in range(len(transit_prob)):
         total = sum(transit_prob[i])
         for j in range(len(transit_prob[i])):
             count = transit_prob[i][j]
-            percentage = count / total
+            percentage = count / \
+                total if not (total == 0 or count == 0) else 0.0000000001
             transit_prob[i][j] = percentage
+        normalize(transit_prob[i])
 
     # change the value of emit_prob from count to percentage
     for i in range(len(emit_prob)):
         total = sum(list(emit_prob[i].values()))
         for word in emit_prob[i]:
             count = emit_prob[i][word]
-            percentage = count / total
+            percentage = count / \
+                total if not (total == 0 or count == 0) else 0.0000000001
             emit_prob[i][word] = percentage
+
+        # normalize(emit_prob[i])
+        total = sum(list(emit_prob[i].values()))
+        for word in emit_prob[i]:
+            p = emit_prob[i][word]
+            adj_p = p / total
+            if word == "to" and tags[i] == 'TO0':
+                adj_p = adj_p * 100
+            if word == "to" and tags[i] == 'PRP':
+                adj_p = adj_p * 10
+            emit_prob[i][word] = adj_p
 
     # change the value of freq_prob from count to percentage
     total = sum(freq_prob)
     for i in range(len(freq_prob)):
         count = freq_prob[i]
-        percentage = count / total
+        percentage = count / \
+            total if not (total == 0 or count == 0) else 0.0000000001
         freq_prob[i] = percentage
+    normalize(freq_prob)
 
     return init_prob, end_prob, transit_prob, emit_prob, freq_prob
 
 
-def handle_ambiguity(tag):
+def handle_ambiguity(tag):  # checked
     """ return the right order of ambiguity tags, if not, return the original format"""
     if tag == "AV0-AJ0":
         return "AJ0-AV0"
@@ -271,7 +264,7 @@ def handle_ambiguity(tag):
     return tag
 
 
-def read_training_list(training_files):
+def read_training_list(training_files):  # checked
     """ read the training files and construct needed model"""
 
     if len(training_files) == 0:
@@ -294,8 +287,16 @@ def read_training_list(training_files):
         for filename in training_files:
             file = open(filename, "r")
             for line in file.read().split('\n')[:-1]:
-                res.append(tuple(line.split(' : ')))
-            file.close()
+                pair = line.split(' : ')
+                word, tag = pair[0], handle_ambiguity(pair[1])
+                res.append((word, tag))
+
+        file.close()
+
+        global training_size
+        training_size = len(res)
+        # print(training_size)
+        # print(1 / training_size)
         return res
 
 
@@ -341,9 +342,10 @@ def tag(training_list, test_file, output_file):
     result = []
     for sentence in test_data:
         # print(sentence)
-        path, prob, prev = viterbi(
+        path = viterbi(
             sentence, tags, init_prob, end_prob, transit_prob, emit_prob, freq_prob)
         # print(path)
+        # break
         result.append(path)
     write_file(output_file, test_data, result)
 
@@ -354,13 +356,13 @@ if __name__ == '__main__':
 
     # Tagger expects the input call: "python3 tagger.py -d <training files> -t <test file> -o <output file>"
     parameters = sys.argv
-    # parameters = "py tagger.py -d data/training1.txt -t data/test1.txt -o output1.txt".split()
+    # parameters = "py tagger.py -d data/training1.txt data/training2.txt -t data/test1.txt -o Tagger/output1.txt".split()
     training_list = parameters[parameters.index("-d")+1:parameters.index("-t")]
     test_file = parameters[parameters.index("-t")+1]
     output_file = parameters[parameters.index("-o")+1]
-    # print("Training files: " + str(training_list))
-    # print("Test file: " + test_file)
-    # print("Output file: " + output_file)
+    print("Training files: " + str(training_list))
+    print("Test file: " + test_file)
+    print("Output file: " + output_file)
 
     # Start the training and tagging operation.
     tag(training_list, test_file, output_file)
