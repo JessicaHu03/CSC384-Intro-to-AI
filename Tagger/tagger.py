@@ -53,7 +53,7 @@ def viterbi(O, S, I, E, T, M, F):
     prob: the probability of most likely states
     prev: the most likely previous state
 
-    TODO: for a word that have encountered before but not in the desire tag, ???
+    TODO: for a word that have encountered before but not in the desire tag
     TODO: check the path forward and backward with reverse transition prob
     TODO: for PUN and not PUN words
     TODO: prefix and suffix
@@ -62,56 +62,37 @@ def viterbi(O, S, I, E, T, M, F):
     L = len(O)
     W = len(S)      # 76
 
-    # Initialize the prob and prev matrix
+    # prob and prev matrix
     prob = np.zeros([L, W])
     prev = np.zeros([L, W])
 
-    # Initialize the basecase (first word)
+    # basecase (first word)
     for i in range(len(S)):
         # take care of the 0s in emit
-        if O[0] not in M[i]:
-            M[i][O[0]] = handle_unseen_words(i, len(O), O[0], 0, I, E, F)
+        o = O[0].lower()
+        if o not in M[i]:
+            M[i][o] = handle_unseen_words(i, len(O), o, 0, I, E, F)
             # M[i][O[0]] = F[i] * 0.0000000001
-        # if tags[i] == 'PUN':
-        #         if O[0] in punc:
-        #             M[i][O[0]] = M[i][O[0]] * training_size
-        #         else:
-        #             M[i][O[0]] = M[i][O[0]] * (1 / training_size)
-        prob[0, i] = I[i] * M[i][O[0]]
+        prob[0, i] = I[i] * M[i][o]
         prev[0, i] = np.NaN
-    # print("wanted tag is 'NP0' with prob " + str(prob[0, tags.index("NP0")]))
-    # max_tag_index = np.argmax(prob[0, :])
-    # print("the max tag is " + tags[max_tag_index] + " with prob " + str(prob[0, max_tag_index]))
     normalize(prob[0, :])
     # print(tags[np.argmax(prob[0, :])])
 
-    # Iterate throught the observations updating the tracking tables
+    # recursive step
     for t in range(1, len(O)):
         for i in range(len(S)):
             # take care of the 0s in emit
-            if O[t] not in M[i]:
-                M[i][O[t]] = handle_unseen_words(i, len(O), O[t], t, I, E, F)
+            o = O[t].lower()
+            if o not in M[i]:
+                M[i][o] = handle_unseen_words(i, len(O), o, t, I, E, F)
                 # M[i][O[t]] = F[i] * 0.0000000001
-            # if tags[i] == 'PUN':
-            #     if O[t] in punc:
-            #         M[i][O[t]] = M[i][O[t]] * training_size
-            #     else:
-            #         M[i][O[t]] = M[i][O[t]] * (1 / training_size)
-            max_index = np.argmax(prob[t-1, :] * T[:][i] * M[i][O[t]])
+            max_index = np.argmax(prob[t-1, :] * T[:][i] * M[i][o])
             # print(tags[max_index])
-            prob[t, i] = prob[t-1, max_index] * T[max_index][i] * M[i][O[t]]
+            prob[t, i] = prob[t-1, max_index] * T[max_index][i] * M[i][o]
             prev[t, i] = max_index
         normalize(prob[t, :])
 
-    # print(prob)
-    # print(prev)
-
-    # last_max_index = np.argmax(prob[L - 1, :])
-    # print(tags[last_max_index])
-    # second_last = prev[L-1, last_max_index]
-    # print(tags[int(second_last)])
-
-    # Build the output, optimal model trajectory
+    # the output path for this sentence
     path = ['' for _ in range(len(O))]
     last_max_index = np.argmax(prob[L - 1, :])
     path[-1] = tags[int(last_max_index)]
@@ -129,11 +110,6 @@ def viterbi(O, S, I, E, T, M, F):
 def HMM(train_data):  # checked
     """
     Construct the init_prob, end_prob, transit_prob, emit_prob, freq_prob model from training data
-
-    Outputs: 
-    init_prob: the prob of how likely each tag starts a sentence. Each value with index i represents the corresponding tag at index i in tags
-    transit_prob: each (i, j) element stores the transit prob of tag j given tag i
-    emit_prob: (word, tag) pair as key and the emit prob of word given tag as value
     """
     num_tags = len(tags)
     # the prob of a tag showing up in the beginning of the sentence
@@ -146,6 +122,7 @@ def HMM(train_data):  # checked
 
     first_pair = train_data[0]
     first_word, first_tag = first_pair
+    first_word = first_word.lower()
     init_prob[tags.index(first_tag)] += 1
 
     num_sentence = 1
@@ -153,7 +130,7 @@ def HMM(train_data):  # checked
     prev_word = first_word
 
     for word, tag in train_data[1:]:
-
+        word = word.lower()
         if prev_word == ".":
             # the words after "." are the begining of a new sentence
             num_sentence += 1
@@ -347,7 +324,6 @@ def tag(training_list, test_file, output_file):
     # Doesn't do much else beyond that yet.
     # print("Tagging the file.")
 
-    # count and fill in the global variables on training files
     train_data = read_training_list(training_list)
     test_data = read_test_file(test_file)
     init_prob, end_prob, transit_prob, emit_prob, freq_prob = HMM(train_data)
