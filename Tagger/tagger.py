@@ -8,7 +8,6 @@ import numpy as np
 # given possible tags and ambiguity tags
 tags = ["AJ0", "AJC", "AJS", "AT0", "AV0", "AVP", "AVQ", "CJC", "CJS", "CJT", "CRD", "DPS", "DT0", "DTQ", "EX0", "ITJ", "NN0", "NN1", "NN2", "NP0", "ORD", "PNI", "PNP", "PNQ", "PNX", "POS", "PRF", "PRP", "PUL", "PUN", "PUQ", "PUR", "TO0", "UNC", "VBB", "VBD", "VBG", "VBI", "VBN", "VBZ", "VDB", "VDD",
         "VDG", "VDI", "VDN", "VDZ", "VHB", "VHD", "VHG", "VHI", "VHN", "VHZ", "VM0", "VVB", "VVD", "VVG", "VVI", "VVN", "VVZ", "XX0", "ZZ0", "AJ0-AV0", "AJ0-VVN", "AJ0-VVD", "AJ0-NN1", "AJ0-VVG", "AVP-PRP",  "AVQ-CJS", "CJS-PRP", "CJT-DT0", "CRD-PNI", "NN1-NP0", "NN1-VVB", "NN1-VVG", "NN2-VVZ", "VVD-VVN"]
-training_size = 0
 punc = []
 
 
@@ -21,7 +20,7 @@ def normalize(L):
         L[i] = percent
 
 
-def handle_unseen_words(tag_index, num_words, word, word_index, initial_prob, end_prob, freq_prob):
+def handle_unseen_words(tag_index, num_words, word, word_index, initial_prob, end_prob, freq_prob, training_size):
     """ Assign an emission prob to a word never seen before """
     prob = 0
     if word_index == 0:  # beginning of the sentence
@@ -35,7 +34,7 @@ def handle_unseen_words(tag_index, num_words, word, word_index, initial_prob, en
     return prob
 
 
-def viterbi(O, S, I, E, T, M, F):
+def viterbi(O, S, I, E, T, M, F, size):
     """
     Return the most likely path in a HMM given a sentence
 
@@ -47,6 +46,7 @@ def viterbi(O, S, I, E, T, M, F):
     T: transition prob          T[prev_tag_index][tag_index]
     M: Emission prob            M[tag_index][word]
     F: frequency prob           F[tag_index]
+    size: training size
 
     Outputs:
     path: the most likely path of given observations
@@ -71,7 +71,7 @@ def viterbi(O, S, I, E, T, M, F):
         # take care of the 0s in emit
         o = O[0].lower()
         if o not in M[i]:
-            M[i][o] = handle_unseen_words(i, len(O), o, 0, I, E, F)
+            M[i][o] = handle_unseen_words(i, len(O), o, 0, I, E, F, size)
             # M[i][O[0]] = F[i] * 0.0000000001
         prob[0, i] = I[i] * M[i][o]
         prev[0, i] = np.NaN
@@ -84,7 +84,7 @@ def viterbi(O, S, I, E, T, M, F):
             # take care of the 0s in emit
             o = O[t].lower()
             if o not in M[i]:
-                M[i][o] = handle_unseen_words(i, len(O), o, t, I, E, F)
+                M[i][o] = handle_unseen_words(i, len(O), o, t, I, E, F, size)
                 # M[i][O[t]] = F[i] * 0.0000000001
             max_index = np.argmax(prob[t-1, :] * T[:][i] * M[i][o])
             # print(tags[max_index])
@@ -267,7 +267,11 @@ def read_training_list(training_files):  # checked
             res.append((word, tag))
 
         file.close()
-        return res
+
+        # global training_size
+        training_size = len(res)
+
+        return res, training_size
 
     else:  # more than one training files
         res = []
@@ -283,11 +287,11 @@ def read_training_list(training_files):  # checked
 
         file.close()
 
-        global training_size
+        # global training_size
         training_size = len(res)
         # print(training_size)
         # print(1 / training_size)
-        return res
+        return res, training_size
 
 
 def read_test_file(filename):
@@ -324,7 +328,7 @@ def tag(training_list, test_file, output_file):
     # Doesn't do much else beyond that yet.
     # print("Tagging the file.")
 
-    train_data = read_training_list(training_list)
+    train_data, training_size = read_training_list(training_list)
     test_data = read_test_file(test_file)
     init_prob, end_prob, transit_prob, emit_prob, freq_prob = HMM(train_data)
 
@@ -332,7 +336,7 @@ def tag(training_list, test_file, output_file):
     for sentence in test_data:
         # print(sentence)
         path = viterbi(
-            sentence, tags, init_prob, end_prob, transit_prob, emit_prob, freq_prob)
+            sentence, tags, init_prob, end_prob, transit_prob, emit_prob, freq_prob, training_size)
         # print(path)
         # break
         result.append(path)
