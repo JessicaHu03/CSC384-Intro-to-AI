@@ -26,3 +26,9 @@ Course AI projects, a lot of fun!
 >(if "python3" does not work, try "py")
 >
 >checkers.validate is a script to compare the generated output file with given solution files. 
+
+# 3. Battleship Solitaire
+Running Minimax algorithm with Alpha-Beta pruning on Game Search Tree to filled all battleships onto the board.
+
+# 4. Tagger
+Running Viterbi algorithm after fitting training data to HMM model with word & part of speech pairs to tags all words in testing set with a precision rate over 98%.
